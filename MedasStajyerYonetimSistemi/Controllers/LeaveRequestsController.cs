@@ -567,6 +567,130 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        public async Task<IActionResult> ExportToExcel(string status = "All", DateTime? startDate = null, DateTime? endDate = null)
+        {
+            var query = _context.LeaveRequests
+                .Include(lr => lr.Intern)
+                .Include(lr => lr.Approver)
+                .AsQueryable();
+
+            // Status filtresi
+            if (status != "All" && Enum.TryParse<ApprovalStatus>(status, out var statusEnum))
+            {
+                query = query.Where(lr => lr.Status == statusEnum);
+            }
+
+            // Tarih filtresi
+            if (startDate.HasValue)
+            {
+                query = query.Where(lr => lr.StartDateTime.Date >= startDate.Value.Date);
+            }
+            if (endDate.HasValue)
+            {
+                query = query.Where(lr => lr.EndDateTime.Date <= endDate.Value.Date);
+            }
+
+            var leaveRequests = await query
+                .OrderByDescending(lr => lr.CreatedDate)
+                .ToListAsync();
+
+            // Excel dosyası oluştur
+            using var workbook = new ClosedXML.Excel.XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("İzin Talepleri");
+
+            // Başlık satırı
+            var headers = new[]
+            {
+        "Sıra No",
+        "Stajyer Adı",
+        "Departman",
+        "İzin Türü",
+        "Çıkış Tarihi",
+        "Çıkış Saati",
+        "Dönüş Tarihi",
+        "Dönüş Saati",
+        "Toplam Gün",
+        "Toplam Saat",
+        "İzin Sebebi",
+        "Durum",
+        "Onaylayan",
+        "Onay Tarihi",
+        "Onay Notu",
+        "Talep Tarihi",
+        "Manuel Form",
+        "Puantaja Yansıt"
+    };
+
+            for (int i = 0; i < headers.Length; i++)
+            {
+                worksheet.Cell(1, i + 1).Value = headers[i];
+                worksheet.Cell(1, i + 1).Style.Font.Bold = true;
+                worksheet.Cell(1, i + 1).Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
+            }
+
+            // Veri satırları
+            int row = 2;
+            foreach (var leave in leaveRequests)
+            {
+                worksheet.Cell(row, 1).Value = row - 1; // Sıra no
+                worksheet.Cell(row, 2).Value = leave.Intern.FullName;
+                worksheet.Cell(row, 3).Value = leave.Intern.Department;
+                worksheet.Cell(row, 4).Value = GetLeaveTypeDescription(leave.LeaveType);
+                worksheet.Cell(row, 5).Value = leave.StartDateTime.ToString("dd.MM.yyyy");
+                worksheet.Cell(row, 6).Value = leave.StartDateTime.ToString("HH:mm");
+                worksheet.Cell(row, 7).Value = leave.EndDateTime.ToString("dd.MM.yyyy");
+                worksheet.Cell(row, 8).Value = leave.EndDateTime.ToString("HH:mm");
+                worksheet.Cell(row, 9).Value = leave.TotalDays;
+                worksheet.Cell(row, 10).Value = leave.TotalHours.ToString("F1");
+                worksheet.Cell(row, 11).Value = leave.Reason ?? "";
+                worksheet.Cell(row, 12).Value = GetApprovalStatusDescription(leave.Status);
+                worksheet.Cell(row, 13).Value = leave.ApproverName ?? "";
+                worksheet.Cell(row, 14).Value = leave.ApprovalDate?.ToString("dd.MM.yyyy HH:mm") ?? "";
+                worksheet.Cell(row, 15).Value = leave.ApprovalNote ?? "";
+                worksheet.Cell(row, 16).Value = leave.CreatedDate.ToString("dd.MM.yyyy HH:mm");
+                worksheet.Cell(row, 17).Value = leave.IsManualEntry ? "Evet" : "Hayır";
+                worksheet.Cell(row, 18).Value = leave.ShouldReflectToTimesheet ? "Evet" : "Hayır";
+
+                row++;
+            }
+
+            // Sütun genişliklerini ayarla
+            worksheet.Columns().AdjustToContents();
+
+            // Tablo formatı uygula
+            var dataRange = worksheet.Range(1, 1, row - 1, headers.Length);
+            var table = dataRange.CreateTable();
+            table.Theme = ClosedXML.Excel.XLTableTheme.TableStyleMedium2;
+
+            // Dosya adı oluştur
+            var fileName = $"Izin_Talepleri_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
+
+            // Excel dosyasını gönder
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            stream.Position = 0;
+
+            return File(
+                stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName
+            );
+        }
+
+        // Helper method - Onay durumu açıklaması
+        private string GetApprovalStatusDescription(ApprovalStatus status)
+        {
+            return status switch
+            {
+                ApprovalStatus.Pending => "Beklemede",
+                ApprovalStatus.Approved => "Onaylandı",
+                ApprovalStatus.Rejected => "Reddedildi",
+                ApprovalStatus.Revision => "Revize",
+                ApprovalStatus.Cancelled => "İptal",
+                _ => "Bilinmeyen"
+            };
+        }
+
         // ========================================================================
         // Helper Methods
         // ========================================================================

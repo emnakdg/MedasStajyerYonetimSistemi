@@ -2,6 +2,7 @@
 // Controllers/TimesheetsController.cs - Puantaj Yönetim Controller'ı
 // ============================================================================
 
+using ClosedXML.Excel;
 using MedasStajyerYonetimSistemi.Data;
 using MedasStajyerYonetimSistemi.Models;
 using Microsoft.AspNetCore.Identity;
@@ -386,6 +387,195 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
 
             timesheet.TimesheetDetails = details;
+        }
+
+        // TimesheetsController.cs'e ekleyin
+
+        // ========================================================================
+        // GET: Timesheets/ExportToExcel - Puantaj Excel Export
+        // ========================================================================
+        public async Task<IActionResult> ExportToExcel(string status = "All")
+        {
+            var query = _context.Timesheets
+                .Include(t => t.Intern)
+                .Include(t => t.Approver)
+                .Include(t => t.TimesheetDetails.OrderBy(td => td.WorkDate))
+                .AsQueryable();
+
+            // Status filtresi
+            if (status != "All" && Enum.TryParse<ApprovalStatus>(status, out var statusEnum))
+            {
+                query = query.Where(t => t.Status == statusEnum);
+            }
+
+            var timesheets = await query
+                .OrderByDescending(t => t.PeriodDate)
+                .ThenByDescending(t => t.CreatedDate)
+                .ToListAsync();
+
+            using var workbook = new XLWorkbook();
+
+            // ========================================================================
+            // Worksheet 1: Puantaj Özeti
+            // ========================================================================
+            var summaryWorksheet = workbook.Worksheets.Add("Puantaj Özeti");
+
+            // Summary Headers
+            summaryWorksheet.Cell(1, 1).Value = "Stajyer Adı";
+            summaryWorksheet.Cell(1, 2).Value = "Departman";
+            summaryWorksheet.Cell(1, 3).Value = "Şirket Sicil No";
+            summaryWorksheet.Cell(1, 4).Value = "Sicil No";
+            summaryWorksheet.Cell(1, 5).Value = "İşyeri";
+            summaryWorksheet.Cell(1, 6).Value = "Dönem";
+            summaryWorksheet.Cell(1, 7).Value = "Toplam Çalışma Günü";
+            summaryWorksheet.Cell(1, 8).Value = "Toplam İzin Günü";
+            summaryWorksheet.Cell(1, 9).Value = "Yemek Yardımı Günü";
+            summaryWorksheet.Cell(1, 10).Value = "Eğitim Saati";
+            summaryWorksheet.Cell(1, 11).Value = "Durum";
+            summaryWorksheet.Cell(1, 12).Value = "Onaylayan";
+
+            // Header styling
+            var summaryHeaderRange = summaryWorksheet.Range(1, 1, 1, 12);
+            summaryHeaderRange.Style.Font.Bold = true;
+            summaryHeaderRange.Style.Fill.BackgroundColor = XLColor.DarkBlue;
+            summaryHeaderRange.Style.Font.FontColor = XLColor.White;
+            summaryHeaderRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
+
+            // Summary data
+            int summaryRow = 2;
+            foreach (var timesheet in timesheets)
+            {
+                var mealAllowanceDays = timesheet.TimesheetDetails.Count(d => d.HasMealAllowance);
+
+                summaryWorksheet.Cell(summaryRow, 1).Value = timesheet.Intern.FullName;
+                summaryWorksheet.Cell(summaryRow, 2).Value = timesheet.Intern.Department;
+                summaryWorksheet.Cell(summaryRow, 3).Value = timesheet.Intern.CompanyEmployeeNumber ?? "";
+                summaryWorksheet.Cell(summaryRow, 4).Value = timesheet.Intern.EmployeeNumber ?? "";
+                summaryWorksheet.Cell(summaryRow, 5).Value = timesheet.Intern.Workplace ?? "";
+                summaryWorksheet.Cell(summaryRow, 6).Value = timesheet.PeriodDate.ToString("MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"));
+                summaryWorksheet.Cell(summaryRow, 7).Value = timesheet.TotalWorkDays;
+                summaryWorksheet.Cell(summaryRow, 8).Value = timesheet.TotalLeaveDays;
+                summaryWorksheet.Cell(summaryRow, 9).Value = mealAllowanceDays;
+                summaryWorksheet.Cell(summaryRow, 10).Value = timesheet.TotalTrainingHours.ToString("F1");
+                summaryWorksheet.Cell(summaryRow, 11).Value = GetApprovalStatusDisplayName(timesheet.Status);
+                summaryWorksheet.Cell(summaryRow, 12).Value = timesheet.ApproverName ?? "";
+
+                // Durum renklandırması
+                var statusCell = summaryWorksheet.Cell(summaryRow, 11);
+                switch (timesheet.Status)
+                {
+                    case ApprovalStatus.Approved:
+                        statusCell.Style.Fill.BackgroundColor = XLColor.LightGreen;
+                        break;
+                    case ApprovalStatus.Rejected:
+                        statusCell.Style.Fill.BackgroundColor = XLColor.LightPink;
+                        break;
+                    case ApprovalStatus.Pending:
+                        statusCell.Style.Fill.BackgroundColor = XLColor.LightYellow;
+                        break;
+                    case ApprovalStatus.Revision:
+                        statusCell.Style.Fill.BackgroundColor = XLColor.LightBlue;
+                        break;
+                }
+
+                summaryRow++;
+            }
+
+            // Summary styling
+            summaryWorksheet.Columns().AdjustToContents();
+            var summaryDataRange = summaryWorksheet.Range(1, 1, summaryRow - 1, 12);
+            summaryDataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            summaryDataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+            // ========================================================================
+            // Worksheet 2: Detaylı Puantaj (Günlük)
+            // ========================================================================
+            var detailWorksheet = workbook.Worksheets.Add("Günlük Detaylar");
+
+            // Detail Headers
+            detailWorksheet.Cell(1, 1).Value = "Stajyer Adı";
+            detailWorksheet.Cell(1, 2).Value = "Dönem";
+            detailWorksheet.Cell(1, 3).Value = "Tarih";
+            detailWorksheet.Cell(1, 4).Value = "Gün";
+            detailWorksheet.Cell(1, 5).Value = "Devam Durumu";
+            detailWorksheet.Cell(1, 6).Value = "Görev Yeri";
+            detailWorksheet.Cell(1, 7).Value = "Başlangıç Saati";
+            detailWorksheet.Cell(1, 8).Value = "Bitiş Saati";
+            detailWorksheet.Cell(1, 9).Value = "İzin Bilgisi";
+            detailWorksheet.Cell(1, 10).Value = "İzin Saati";
+            detailWorksheet.Cell(1, 11).Value = "Eğitim Bilgisi";
+            detailWorksheet.Cell(1, 12).Value = "Eğitim Saati";
+            detailWorksheet.Cell(1, 13).Value = "Yemek Yardımı";
+            detailWorksheet.Cell(1, 14).Value = "Açıklama";
+
+            // Detail header styling
+            var detailHeaderRange = detailWorksheet.Range(1, 1, 1, 14);
+            detailHeaderRange.Style.Font.Bold = true;
+            detailHeaderRange.Style.Fill.BackgroundColor = XLColor.DarkGreen;
+            detailHeaderRange.Style.Font.FontColor = XLColor.White;
+            detailHeaderRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
+
+            // Detail data
+            int detailRow = 2;
+            foreach (var timesheet in timesheets)
+            {
+                foreach (var detail in timesheet.TimesheetDetails)
+                {
+                    detailWorksheet.Cell(detailRow, 1).Value = timesheet.Intern.FullName;
+                    detailWorksheet.Cell(detailRow, 2).Value = timesheet.PeriodDate.ToString("MMMM yyyy", new System.Globalization.CultureInfo("tr-TR"));
+                    detailWorksheet.Cell(detailRow, 3).Value = detail.WorkDate.ToString("dd.MM.yyyy");
+                    detailWorksheet.Cell(detailRow, 4).Value = detail.DayName;
+                    detailWorksheet.Cell(detailRow, 5).Value = detail.IsPresent ? "Var" : "Yok";
+                    detailWorksheet.Cell(detailRow, 6).Value = detail.WorkLocation == WorkLocation.HeadOffice ? "Genel Müdürlük" : "İşletme";
+                    detailWorksheet.Cell(detailRow, 7).Value = detail.StartTime?.ToString(@"hh\:mm") ?? "";
+                    detailWorksheet.Cell(detailRow, 8).Value = detail.EndTime?.ToString(@"hh\:mm") ?? "";
+                    detailWorksheet.Cell(detailRow, 9).Value = detail.LeaveInfo;
+                    detailWorksheet.Cell(detailRow, 10).Value = detail.LeaveHours > 0 ? detail.LeaveHours.ToString("F1") : "";
+                    detailWorksheet.Cell(detailRow, 11).Value = detail.TrainingInfo;
+                    detailWorksheet.Cell(detailRow, 12).Value = detail.TrainingHours > 0 ? detail.TrainingHours.ToString("F1") : "";
+                    detailWorksheet.Cell(detailRow, 13).Value = detail.HasMealAllowance ? "Evet" : "Hayır";
+                    detailWorksheet.Cell(detailRow, 14).Value = detail.Notes;
+
+                    // Hafta sonu renklandırması
+                    if (detail.WorkDate.DayOfWeek == DayOfWeek.Saturday || detail.WorkDate.DayOfWeek == DayOfWeek.Sunday)
+                    {
+                        var weekendRange = detailWorksheet.Range(detailRow, 1, detailRow, 14);
+                        weekendRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+                    }
+
+                    detailRow++;
+                }
+            }
+
+            // Detail styling
+            detailWorksheet.Columns().AdjustToContents();
+            var detailDataRange = detailWorksheet.Range(1, 1, detailRow - 1, 14);
+            detailDataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            detailDataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+            // Excel dosyasını oluştur
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            stream.Position = 0;
+
+            var fileName = $"Puantaj_Raporu_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+
+            return File(stream.ToArray(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
+
+        private string GetApprovalStatusDisplayName(ApprovalStatus status)
+        {
+            return status switch
+            {
+                ApprovalStatus.Pending => "Beklemede",
+                ApprovalStatus.Approved => "Onaylandı",
+                ApprovalStatus.Rejected => "Reddedildi",
+                ApprovalStatus.Revision => "Revize",
+                ApprovalStatus.Cancelled => "İptal",
+                _ => "Bilinmeyen"
+            };
         }
 
         // Helper method'ları da ekleyin (aynı LeaveRequestsController'da olduğu gibi)
