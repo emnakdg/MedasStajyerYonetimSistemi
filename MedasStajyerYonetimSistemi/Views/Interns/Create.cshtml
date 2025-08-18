@@ -1,0 +1,211 @@
+﻿@* ============================================================================ *@
+@* Views/Interns/Create.cshtml - Yeni Stajyer Formu *@
+@* ============================================================================ *@
+
+@model MedasStajyerYonetimSistemi.Models.Intern
+
+@{
+    ViewData["Title"] = "Stajyer Kaydı - Yeni";
+}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title mb-0">Stajyer Kaydı - Yeni</h3>
+                </div>
+
+                <div class="card-body">
+                    <form asp-action="Create">
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <!-- Temel Bilgiler -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 class="border-bottom pb-2">Stajyer Bilgileri</h5>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="FullName" class="form-label">Adı-Soyadı *</label>
+                                <input asp-for="FullName" class="form-control" required />
+                                <span asp-validation-for="FullName" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Address" class="form-label">İkamet (İl/İlçe)</label>
+                                <input asp-for="Address" class="form-control" />
+                                <span asp-validation-for="Address" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="PhoneNumber" class="form-label">Cep Telefonu</label>
+                                <input asp-for="PhoneNumber" class="form-control" />
+                                <span asp-validation-for="PhoneNumber" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Email" class="form-label">Email</label>
+                                <input asp-for="Email" type="email" class="form-control" />
+                                <span asp-validation-for="Email" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Company" class="form-label">Şirket</label>
+                                <select asp-for="Company" class="form-select">
+                                    <option value="">Seçiniz...</option>
+                                    <option value="MEDAŞ">MEDAŞ</option>
+                                </select>
+                                <span asp-validation-for="Company" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Department" class="form-label">Departman/İşletme</label>
+                                <select asp-for="Department" class="form-select">
+                                    <option value="">Seçiniz...</option>
+                                    <option value="İnsan Kaynakları ve Organizasyon Metot Müdürlüğü">İnsan Kaynakları ve Organizasyon Metot Müdürlüğü</option>
+                                    <option value="Bilgi İşlem Müdürlüğü">Bilgi İşlem Müdürlüğü</option>
+                                    <option value="Personel ve İdari İşler Müdürlüğü">Personel ve İdari İşler Müdürlüğü</option>
+                                    <option value="Teknik İşler Müdürlüğü">Teknik İşler Müdürlüğü</option>
+                                </select>
+                                <span asp-validation-for="Department" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="ResponsiblePersonId" class="form-label">Sorumlu Kişi *</label>
+                                <select asp-for="ResponsiblePersonId" class="form-select" asp-items="ViewBag.ResponsiblePersonId" required>
+                                    <option value="">Seçiniz...</option>
+                                </select>
+                                <span asp-validation-for="ResponsiblePersonId" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="School" class="form-label">Okul</label>
+                                <input asp-for="School" class="form-control" />
+                                <span asp-validation-for="School" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Major" class="form-label">Bölüm</label>
+                                <input asp-for="Major" class="form-control" />
+                                <span asp-validation-for="Major" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <!-- İletişim Bilgileri -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 class="border-bottom pb-2">İletişim Bilgileri</h5>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="EmergencyContactName" class="form-label">Acil Durumda Aranacak Kişi</label>
+                                <input asp-for="EmergencyContactName" class="form-control" />
+                                <span asp-validation-for="EmergencyContactName" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="EmergencyContactPhone" class="form-label">Acil Durum Telefon</label>
+                                <input asp-for="EmergencyContactPhone" class="form-control" />
+                                <span asp-validation-for="EmergencyContactPhone" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="SchoolSupervisorName" class="form-label">Sorumlu Okul Hocası</label>
+                                <input asp-for="SchoolSupervisorName" class="form-control" />
+                                <span asp-validation-for="SchoolSupervisorName" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="SchoolSupervisorPhone" class="form-label">Okul Hocası Telefon</label>
+                                <input asp-for="SchoolSupervisorPhone" class="form-control" />
+                                <span asp-validation-for="SchoolSupervisorPhone" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="InternshipType" class="form-label">Staj Türü</label>
+                                <select asp-for="InternshipType" class="form-select">
+                                    <option value="">Seçiniz...</option>
+                                    <option value="1">Yaz Dönemi Stajı</option>
+                                    <option value="2">Talentern</option>
+                                    <option value="3">Koza Projesi</option>
+                                    <option value="4">Lise Stajı</option>
+                                </select>
+                                <span asp-validation-for="InternshipType" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="Workplace" class="form-label">İşyeri</label>
+                                <select asp-for="Workplace" class="form-select">
+                                    <option value="">Seçiniz...</option>
+                                    <option value="GM Büro">GM Büro</option>
+                                    <option value="İşletme">İşletme</option>
+                                </select>
+                                <span asp-validation-for="Workplace" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <!-- Staj Detayları -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5 class="border-bottom pb-2">Staj Detayları</h5>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="WorkDays" class="form-label">Staj Günleri</label>
+                                <input asp-for="WorkDays" class="form-control" placeholder="Örn: Pazartesi-Çarşamba-Cuma" />
+                                <span asp-validation-for="WorkDays" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="InternshipStartDate" class="form-label">Staj Başlangıç Tarihi</label>
+                                <input asp-for="InternshipStartDate" type="date" class="form-control" />
+                                <span asp-validation-for="InternshipStartDate" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="InternshipEndDate" class="form-label">Staj Bitiş Tarihi</label>
+                                <input asp-for="InternshipEndDate" type="date" class="form-control" />
+                                <span asp-validation-for="InternshipEndDate" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label asp-for="EmployeeNumber" class="form-label">Sicil No</label>
+                                <input asp-for="EmployeeNumber" class="form-control" />
+                                <span asp-validation-for="EmployeeNumber" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <div class="form-check mt-4">
+                                    <input asp-for="IsFromCloudoffix" class="form-check-input" type="checkbox" />
+                                    <label asp-for="IsFromCloudoffix" class="form-check-label">
+                                        Cloudoffix'ten geldi
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Butonlar -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> KAYDET
+                                </button>
+                                <a asp-action="Index" class="btn btn-secondary ms-2">
+                                    <i class="fas fa-arrow-left"></i> Geri Dön
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

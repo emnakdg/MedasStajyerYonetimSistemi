@@ -1,0 +1,44 @@
+﻿@model MedasStajyerYonetimSistemi.Models.Intern
+
+@{
+    ViewData["Title"] = "Stajyer Sil";
+}
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3>Stajyer Silme Onayı</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <strong>Dikkat!</strong> Bu stajyer kaydını silmek istediğinizden emin misiniz?
+                </div>
+
+                <dl class="row">
+                    <dt class="col-sm-3">Ad Soyad:</dt>
+                    <dd class="col-sm-9">@Model.FullName</dd>
+
+                    <dt class="col-sm-3">Email:</dt>
+                    <dd class="col-sm-9">@Model.Email</dd>
+
+                    <dt class="col-sm-3">Şirket:</dt>
+                    <dd class="col-sm-9">@Model.Company</dd>
+
+                    <dt class="col-sm-3">Departman:</dt>
+                    <dd class="col-sm-9">@Model.Department</dd>
+                </dl>
+
+                <form asp-action="Delete" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="Id" />
+
+                    <div class="form-group mt-3">
+                        <input type="submit" value="Sil" class="btn btn-danger" />
+                        <a asp-action="Index" class="btn btn-secondary">İptal</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,302 @@
+﻿@model MedasStajyerYonetimSistemi.Models.Timesheet
+
+@{
+    ViewData["Title"] = "Puantaj Düzenle";
+}
+
+@Html.AntiForgeryToken()
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Puantaj Düzenle</h2>
+            <div>
+                <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-info">
+                    <i class="fas fa-eye"></i> Detaylar
+                </a>
+                <a asp-action="Index" class="btn btn-secondary">
+                    <i class="fas fa-list"></i> Listeye Dön
+                </a>
+            </div>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show">
+                @TempData["SuccessMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show">
+                @TempData["ErrorMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <!-- Puantaj Özet Bilgileri -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5><i class="fas fa-user"></i> Stajyer: @Model.Intern.FullName</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <strong>Dönem:</strong><br>
+                        @Model.PeriodDate.ToString("MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"))
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Toplam Çalışma:</strong><br>
+                        <span class="badge bg-primary">@Model.TotalWorkDays gün</span>
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Toplam İzin:</strong><br>
+                        <span class="badge bg-warning">@Model.TotalLeaveDays gün</span>
+                    </div>
+                    <div class="col-md-3">
+                        <strong>Eğitim Saati:</strong><br>
+                        <span class="badge bg-info">@Model.TotalTrainingHours.ToString("F1") saat</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Günlük Detaylar -->
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-calendar-alt"></i> Günlük Detaylar</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm">
+                        <thead class="table-dark">
+                            <tr>
+                                <th style="width: 80px;">Tarih</th>
+                                <th style="width: 80px;">Gün</th>
+                                <th style="width: 80px;">Devam</th>
+                                <th style="width: 120px;">Görev Yeri</th>
+                                <th style="width: 100px;">Başlangıç</th>
+                                <th style="width: 100px;">Bitiş</th>
+                                <th>İzin Bilgisi</th>
+                                <th>Eğitim</th>
+                                <th style="width: 80px;">Yemek</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var detail in Model.TimesheetDetails)
+                            {
+                                <tr class="@(detail.WorkDate.DayOfWeek == DayOfWeek.Saturday || detail.WorkDate.DayOfWeek == DayOfWeek.Sunday ? "table-secondary" : "")">
+                                    <td>@detail.WorkDate.ToString("dd.MM")</td>
+                                    <td>
+                                        <small>@detail.DayName</small>
+                                    </td>
+                                    <td>
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input"
+                                                   id="present_@detail.Id"
+                                                   @(detail.IsPresent ? "checked" : "")
+                                                   onchange="togglePresence(@detail.Id)">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" id="location_@detail.Id">
+                                            <option value="1">Genel Müdürlük</option>
+                                            <option value="2">İşletme</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="time" class="form-control form-control-sm"
+                                               id="start_@detail.Id"
+                                               value="@(detail.StartTime?.ToString(@"hh\:mm"))"
+                                               @(!detail.IsPresent ? "disabled" : "")>
+                                    </td>
+                                    <td>
+                                        <input type="time" class="form-control form-control-sm"
+                                               id="end_@detail.Id"
+                                               value="@(detail.EndTime?.ToString(@"hh\:mm"))"
+                                               @(!detail.IsPresent ? "disabled" : "")>
+                                    </td>
+                                    <td>
+                                        <div class="row g-1">
+                                            <div class="col-8">
+                                                <input type="text" class="form-control form-control-sm"
+                                                       id="leaveInfo_@detail.Id"
+                                                       value="@detail.LeaveInfo"
+                                                       placeholder="İzin açıklaması">
+                                            </div>
+                                            <div class="col-4">
+                                                <input type="number" class="form-control form-control-sm"
+                                                       id="leaveHours_@detail.Id"
+                                                       value="@detail.LeaveHours.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
+                                                       step="0.5" min="0" max="24"
+                                                       placeholder="Saat">
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="row g-1">
+                                            <div class="col-8">
+                                                <input type="text" class="form-control form-control-sm"
+                                                       id="trainingInfo_@detail.Id"
+                                                       value="@detail.TrainingInfo"
+                                                       placeholder="Eğitim açıklaması">
+                                            </div>
+                                            <div class="col-4">
+                                                <input type="number" class="form-control form-control-sm"
+                                                       id="trainingHours_@detail.Id"
+                                                       value="@detail.TrainingHours.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)"
+                                                       step="0.5" min="0" max="24"
+                                                       placeholder="Saat">
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input"
+                                                   id="meal_@detail.Id"
+                                                   @(detail.HasMealAllowance ? "checked" : "")>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-success"
+                                                onclick="updateDetail(@detail.Id)" title="Kaydet">
+                                            <i class="fas fa-save"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3">
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> Kullanım Bilgileri</h6>
+                        <ul class="mb-0">
+                            <li><strong>Devam:</strong> Çalışılan günler için işaretleyin</li>
+                            <li><strong>Çalışma Saatleri:</strong> Sadece devam edilen günler için girilir</li>
+                            <li><strong>İzin Bilgisi:</strong> İzinli günler için açıklama ve saat girebilirsiniz</li>
+                            <li><strong>Eğitim:</strong> Aldığı eğitimler için açıklama ve saat girebilirsiniz</li>
+                            <li><strong>Yemek Yardımı:</strong> Yemek yardımı alan günler için işaretleyin</li>
+                            <li>Her satır için <i class="fas fa-save"></i> butonuna basarak kaydedin</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function togglePresence(detailId) {
+            const isPresent = document.getElementById('present_' + detailId).checked;
+            const startInput = document.getElementById('start_' + detailId);
+            const endInput = document.getElementById('end_' + detailId);
+
+            if (isPresent) {
+                startInput.disabled = false;
+                endInput.disabled = false;
+                if (!startInput.value) startInput.value = '08:30';
+                if (!endInput.value) endInput.value = '17:30';
+            } else {
+                startInput.disabled = true;
+                endInput.disabled = true;
+                startInput.value = '';
+                endInput.value = '';
+            }
+        }
+
+        function updateDetail(detailId) {
+            console.log('updateDetail called for:', detailId);
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '@Url.Action("UpdateDetail")';
+
+            // Token
+            const tokenElement = document.querySelector('input[name="__RequestVerificationToken"]');
+            if (!tokenElement) {
+                console.error('Anti-forgery token not found');
+                return;
+            }
+
+            const tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '__RequestVerificationToken';
+            tokenInput.value = tokenElement.value;
+            form.appendChild(tokenInput);
+
+            // Element'lerin varlığını kontrol et
+            const elements = {
+                present: document.getElementById('present_' + detailId),
+                start: document.getElementById('start_' + detailId),
+                end: document.getElementById('end_' + detailId),
+                leaveInfo: document.getElementById('leaveInfo_' + detailId),
+                leaveHours: document.getElementById('leaveHours_' + detailId),
+                trainingInfo: document.getElementById('trainingInfo_' + detailId),
+                trainingHours: document.getElementById('trainingHours_' + detailId),
+                meal: document.getElementById('meal_' + detailId),
+                location: document.getElementById('location_' + detailId)
+            };
+
+            // Eksik element kontrolü
+            for (const [key, element] of Object.entries(elements)) {
+                if (!element) {
+                    console.error(`Element not found: ${key}_${detailId}`);
+                    return;
+                }
+            }
+
+            console.log('Training info:', elements.trainingInfo.value);
+            console.log('Training hours:', elements.trainingHours.value);
+
+            // Ondalık sayıları düzelt (Türkçe 2,5 -> İngilizce 2.5)
+            const leaveHoursValue = elements.leaveHours.value.replace(',', '.') || '0';
+            const trainingHoursValue = elements.trainingHours.value.replace(',', '.') || '0';
+
+            // Veri alanları
+            const fields = [
+                { name: 'detailId', value: detailId },
+                { name: 'isPresent', value: elements.present.checked },
+                { name: 'startTime', value: elements.start.value || '' },
+                { name: 'endTime', value: elements.end.value || '' },
+                { name: 'leaveInfo', value: elements.leaveInfo.value || '' },
+                { name: 'leaveHours', value: leaveHoursValue },
+                { name: 'trainingInfo', value: elements.trainingInfo.value || '' },
+                { name: 'trainingHours', value: trainingHoursValue },
+                { name: 'hasMealAllowance', value: elements.meal.checked },
+                { name: 'workLocation', value: elements.location.value },
+                { name: 'notes', value: '' }
+            ];
+
+            fields.forEach(field => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = field.name;
+                input.value = field.value;
+                form.appendChild(input);
+                console.log(`${field.name}: ${field.value}`);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+
+        // Sayfa yüklendiğinde devam durumlarını kontrol et
+        document.addEventListener('DOMContentLoaded', function() {
+            @foreach (var detail in Model.TimesheetDetails)
+            {
+                    @:togglePresence(@detail.Id);
+                    @:document.getElementById('location_@detail.Id').value = '@((int)detail.WorkLocation)';
+            }
+        });
+    </script>
+}
+
+@{
+    Html.AntiForgeryToken();
+}

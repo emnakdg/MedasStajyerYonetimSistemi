@@ -1,0 +1,168 @@
+﻿@model MedasStajyerYonetimSistemi.Models.LeaveRequest
+
+@{
+    ViewData["Title"] = "İzin Talebini Sil";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h3><i class="fas fa-trash"></i> İzin Talebini Sil</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <h5><i class="fas fa-exclamation-triangle"></i> Dikkat!</h5>
+                    Bu işlem geri alınamaz. İzin talebini silmek istediğinizden emin misiniz?
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6>Stajyer Bilgileri</h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Ad Soyad:</strong> @Model.Intern.FullName</p>
+                                <p><strong>Departman:</strong> @Model.Intern.Department</p>
+                                <p><strong>Email:</strong> @Model.Intern.Email</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6>İzin Detayları</h6>
+                            </div>
+                            <div class="card-body">
+                                <p>
+                                    <strong>İzin Türü:</strong>
+                                    <span class="badge bg-info">
+                                        @switch (Model.LeaveType)
+                                        {
+                                            case LeaveType.PersonalLeave:
+                                                @("Özel İzin")
+                                                break;
+                                            case LeaveType.ExamLeave:
+
+                                                @("Sınav İzni")
+                                                break;
+                                            case LeaveType.HealthLeave:
+
+                                                @("Sağlık İzni")
+                                                break;
+                                            case LeaveType.ExcuseLeave:
+
+                                                @("Mazeret İzni")
+                                                break;
+                                            case LeaveType.UnpaidLeave:
+
+                                                @("Ücretsiz İzin")
+                                                break;
+                                            default:
+
+                                                @("Bilinmeyen")
+                                                break;
+                                        }
+                                    </span>
+                                </p>
+                                <p>
+                                    <strong>Durum:</strong>
+                                    @switch (Model.Status)
+                                    {
+                                        case ApprovalStatus.Pending:
+                                            <span class="badge bg-warning">Beklemede</span>
+                                            break;
+                                        case ApprovalStatus.Approved:
+                                            <span class="badge bg-success">Onaylandı</span>
+                                            break;
+                                        case ApprovalStatus.Rejected:
+                                            <span class="badge bg-danger">Reddedildi</span>
+                                            break;
+                                    }
+                                </p>
+                                <p><strong>Talep Tarihi:</strong> @Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6>İzin Süresı</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>Çıkış:</strong> @Model.StartDateTime.ToString("dd.MM.yyyy HH:mm")</p>
+                                        <p><strong>Dönüş:</strong> @Model.EndDateTime.ToString("dd.MM.yyyy HH:mm")</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p>
+                                            <strong>Toplam Süre:</strong>
+                                            <span class="badge bg-secondary">@Model.TotalDays gün</span>
+                                            <span class="badge bg-light text-dark">@Model.TotalHours.ToString("F1") saat</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(Model.Reason))
+                                {
+                                    <p><strong>Sebep:</strong></p>
+                                    <div class="bg-white p-2 rounded border">
+                                        @Model.Reason
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (Model.Status == ApprovalStatus.Approved)
+                {
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Uyarı:</strong> Bu izin talebi onaylanmış durumda. Silmeniz durumunda onay geçmişi de silinecektir.
+                        @if (!string.IsNullOrEmpty(Model.ApproverName))
+                        {
+                            <br>
+                            <small>Onaylayan: @Model.ApproverName (@Model.ApprovalDate?.ToString("dd.MM.yyyy HH:mm"))</small>
+                        }
+                    </div>
+                }
+
+                <div class="d-flex justify-content-between mt-4">
+                    <div>
+                        <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> İptal
+                        </a>
+                        <a asp-action="Index" class="btn btn-outline-secondary">
+                            <i class="fas fa-list"></i> Listeye Dön
+                        </a>
+                    </div>
+
+                    <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirmDelete()">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="Id" />
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Kalıcı Olarak Sil
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function confirmDelete() {
+            return confirm('Bu izin talebini kalıcı olarak silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz!');
+        }
+    </script>
+}
+
+@{
+    Html.AntiForgeryToken();
+}

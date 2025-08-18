@@ -1,0 +1,311 @@
+﻿@model MedasStajyerYonetimSistemi.Models.LeaveRequest
+
+@{
+    ViewData["Title"] = "İzin Talebi Detayı";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>İzin Talebi Detayı</h2>
+            <div>
+                <a asp-action="Index" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Geri
+                </a>
+                @if (Model.Status == ApprovalStatus.Pending)
+                {
+                    <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
+                        <i class="fas fa-edit"></i> Düzenle
+                    </a>
+                }
+            </div>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show">
+                @TempData["SuccessMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show">
+                @TempData["ErrorMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <div class="row">
+            <!-- Ana Bilgiler -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle"></i> İzin Talebi Bilgileri</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Stajyer:</label>
+                                    <p class="mb-0">@Model.Intern.FullName</p>
+                                    <small class="text-muted">@Model.Intern.Department</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">İzin Türü:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-info">
+                                            @switch (Model.LeaveType)
+                                            {
+                                                case LeaveType.PersonalLeave:
+                                                    @("Özel İzin")
+                                                    break;
+                                                case LeaveType.ExamLeave:
+
+                                                    @("Sınav İzni")
+                                                    break;
+                                                case LeaveType.HealthLeave:
+
+                                                    @("Sağlık İzni")
+                                                    break;
+                                                case LeaveType.ExcuseLeave:
+
+                                                    @("Mazeret İzni")
+                                                    break;
+                                                case LeaveType.UnpaidLeave:
+
+                                                    @("Ücretsiz İzin")
+                                                    break;
+                                                default:
+
+                                                    @("Bilinmeyen")
+                                                    break;
+                                            }
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Çıkış Tarihi/Saati:</label>
+                                    <p class="mb-0">@Model.StartDateTime.ToString("dd.MM.yyyy HH:mm")</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Dönüş Tarihi/Saati:</label>
+                                    <p class="mb-0">@Model.EndDateTime.ToString("dd.MM.yyyy HH:mm")</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Toplam Süre:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-secondary">@Model.TotalDays gün</span>
+                                        <span class="badge bg-light text-dark">@Model.TotalHours.ToString("F1") saat</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Talep Tarihi:</label>
+                                    <p class="mb-0">@Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(Model.Reason))
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">İzin/Görev Sebebi:</label>
+                                <div class="bg-light p-3 rounded">
+                                    @Model.Reason
+                                </div>
+                            </div>
+                        }
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @(Model.IsManualEntry ? "checked" : "") disabled>
+                                    <label class="form-check-label">Manuel Form</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @(Model.ShouldReflectToTimesheet ? "checked" : "") disabled>
+                                    <label class="form-check-label">Puantaja Yansıt</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Durum ve Onay Bilgileri -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-check-circle"></i> Onay Durumu</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-3">
+                            @switch (Model.Status)
+                            {
+                                case ApprovalStatus.Pending:
+                                    <span class="badge bg-warning fs-6 px-3 py-2">
+                                        <i class="fas fa-clock"></i> Beklemede
+                                    </span>
+                                    break;
+                                case ApprovalStatus.Approved:
+                                    <span class="badge bg-success fs-6 px-3 py-2">
+                                        <i class="fas fa-check"></i> Onaylandı
+                                    </span>
+                                    break;
+                                case ApprovalStatus.Rejected:
+                                    <span class="badge bg-danger fs-6 px-3 py-2">
+                                        <i class="fas fa-times"></i> Reddedildi
+                                    </span>
+                                    break;
+                            }
+                        </div>
+
+                        @if (Model.Status != ApprovalStatus.Pending)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Onaylayan:</label>
+                                <p class="mb-0">@(Model.ApproverName ?? "Bilinmiyor")</p>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Onay Tarihi:</label>
+                                <p class="mb-0">@Model.ApprovalDate?.ToString("dd.MM.yyyy HH:mm")</p>
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(Model.ApprovalNote))
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        @(Model.Status == ApprovalStatus.Approved ? "Onay Notu:" : "Red Nedeni:")
+                                    </label>
+                                    <div class="@(Model.Status == ApprovalStatus.Approved ? "bg-success" : "bg-danger") bg-opacity-10 p-3 rounded">
+                                        @Model.ApprovalNote
+                                    </div>
+                                </div>
+                            }
+                        }
+
+                        @if (Model.Status == ApprovalStatus.Pending)
+                        {
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-success" onclick="showApproveModal()">
+                                    <i class="fas fa-check"></i> Onayla
+                                </button>
+                                <button type="button" class="btn btn-danger" onclick="showRejectModal()">
+                                    <i class="fas fa-times"></i> Reddet
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @if (Model.IsManualEntry && !string.IsNullOrEmpty(Model.ManualEntryBy))
+                {
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h6><i class="fas fa-user-edit"></i> Manuel Giriş</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-0"><strong>Giren Kişi:</strong> @Model.ManualEntryBy</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Onay Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">İzin Talebini Onayla</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="Approve" method="post">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>@Model.Intern.FullName</strong> adlı stajyerin izin talebini onaylamak istediğinizden emin misiniz?
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Onay Notu (Opsiyonel):</label>
+                        <textarea name="approvalNote" class="form-control" rows="3"
+                                  placeholder="Onay ile ilgili not ekleyebilirsiniz..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-success">Onayla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Red Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">İzin Talebini Reddet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="Reject" method="post">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>@Model.Intern.FullName</strong> adlı stajyerin izin talebini reddetmek istediğinizden emin misiniz?
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Red Nedeni <span class="text-danger">*</span></label>
+                        <textarea name="rejectionReason" class="form-control" rows="3"
+                                  placeholder="İzin talebinin red nedenini açıklayın..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-danger">Reddet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function showApproveModal() {
+            new bootstrap.Modal(document.getElementById('approveModal')).show();
+        }
+
+        function showRejectModal() {
+            new bootstrap.Modal(document.getElementById('rejectModal')).show();
+        }
+    </script>
+}
+
+@{
+    Html.AntiForgeryToken();
+}

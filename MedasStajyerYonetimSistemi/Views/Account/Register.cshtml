@@ -1,0 +1,117 @@
+﻿@using MedasStajyerYonetimSistemi.Controllers
+@model RegisterViewModel
+
+@{
+    ViewData["Title"] = "Kayıt Ol";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow">
+            <div class="card-header text-center bg-primary text-white">
+                <h3><i class="fas fa-building me-2"></i>MEDAŞ</h3>
+                <p class="mb-0">Stajyer Yönetim Sistemi</p>
+            </div>
+            <div class="card-body p-4">
+                <h4 class="text-center mb-4">Yeni Hesap Oluştur</h4>
+
+                <form asp-action="Register" method="post">
+                    @Html.AntiForgeryToken()
+
+                    <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="FullName" class="form-label">
+                                    <i class="fas fa-user me-1"></i>Ad Soyad <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="FullName" class="form-control" placeholder="Adınız Soyadınız" />
+                                <span asp-validation-for="FullName" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="Email" class="form-label">
+                                    <i class="fas fa-envelope me-1"></i>E-posta <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="Email" class="form-control" placeholder="ornek@medas.com.tr" />
+                                <span asp-validation-for="Email" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="Department" class="form-label">
+                                    <i class="fas fa-building me-1"></i>Departman
+                                </label>
+                                <input asp-for="Department" class="form-control" placeholder="Departmanınız" />
+                                <span asp-validation-for="Department" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="Title" class="form-label">
+                                    <i class="fas fa-id-badge me-1"></i>Unvan
+                                </label>
+                                <input asp-for="Title" class="form-control" placeholder="Unvanınız" />
+                                <span asp-validation-for="Title" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="EmployeeNumber" class="form-label">
+                            <i class="fas fa-id-card me-1"></i>Sicil No
+                        </label>
+                        <input asp-for="EmployeeNumber" class="form-control" placeholder="Sicil numaranız" />
+                        <span asp-validation-for="EmployeeNumber" class="text-danger"></span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="Password" class="form-label">
+                                    <i class="fas fa-lock me-1"></i>Şifre <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="Password" class="form-control" placeholder="En az 4 karakter" />
+                                <span asp-validation-for="Password" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="ConfirmPassword" class="form-label">
+                                    <i class="fas fa-lock me-1"></i>Şifre Tekrar <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="ConfirmPassword" class="form-control" placeholder="Şifrenizi tekrar giriniz" />
+                                <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid mb-3">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-user-plus me-1"></i>Hesap Oluştur
+                        </button>
+                    </div>
+                </form>
+
+                <div class="text-center">
+                    <small class="text-muted">
+                        Zaten hesabınız var mı?
+                        <a asp-action="Login" class="text-decoration-none">Giriş yapın</a>
+                    </small>
+                </div>
+            </div>
+            <div class="card-footer text-center text-muted">
+                <small>&copy; 2025 MEDAŞ - Tüm hakları saklıdır</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

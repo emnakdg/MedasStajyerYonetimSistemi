@@ -1,0 +1,377 @@
+﻿@model MedasStajyerYonetimSistemi.Models.Timesheet
+
+@{
+    ViewData["Title"] = "Puantaj Detayı";
+}
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Puantaj Detayı</h2>
+            <div>
+                <a asp-action="Index" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Geri
+                </a>
+                @if (Model.Status != ApprovalStatus.Approved)
+                {
+                    <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
+                        <i class="fas fa-edit"></i> Düzenle
+                    </a>
+                }
+            </div>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show">
+                @TempData["SuccessMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show">
+                @TempData["ErrorMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <div class="row">
+            <!-- Ana Bilgiler -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle"></i> Puantaj Bilgileri</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Stajyer:</label>
+                                    <p class="mb-0">@Model.Intern.FullName</p>
+                                    <small class="text-muted">@Model.Intern.Department</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Dönem:</label>
+                                    <p class="mb-0">@Model.PeriodDate.ToString("MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"))</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Toplam Çalışma:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-primary fs-6">@Model.TotalWorkDays gün</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Toplam İzin:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-warning fs-6">@Model.TotalLeaveDays gün</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Eğitim Saati:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-info fs-6">@Model.TotalTrainingHours.ToString("F1") saat</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Oluşturma:</label>
+                                    <p class="mb-0">@Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (Model.IsManualEntry)
+                        {
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>Manuel Form:</strong> Bu puantaj manuel olarak oluşturulmuştur.
+                                @if (!string.IsNullOrEmpty(Model.ManualEntryBy))
+                                {
+                                    <br>
+                            
+                                    <small>Oluşturan: @Model.ManualEntryBy</small>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Günlük Detaylar -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5><i class="fas fa-calendar-alt"></i> Günlük Detaylar</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Tarih</th>
+                                        <th>Gün</th>
+                                        <th>Devam</th>
+                                        <th>Görev Yeri</th>
+                                        <th>Çalışma Saati</th>
+                                        <th>İzin</th>
+                                        <th>Eğitim</th>
+                                        <th>Yemek</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var detail in Model.TimesheetDetails)
+                                    {
+                                        <tr class="@(detail.WorkDate.DayOfWeek == DayOfWeek.Saturday || detail.WorkDate.DayOfWeek == DayOfWeek.Sunday ? "table-secondary" : "")">
+                                            <td>@detail.WorkDate.ToString("dd.MM.yyyy")</td>
+                                            <td>@detail.DayName</td>
+                                            <td>
+                                                @if (detail.IsPresent)
+                                                {
+                                                    <span class="badge bg-success">Var</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary">Yok</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @switch (detail.WorkLocation)
+                                                {
+                                                    case WorkLocation.HeadOffice:
+                                                        <span class="badge bg-primary">Genel Müdürlük</span>
+                                                        break;
+                                                    case WorkLocation.Branch:
+                                                        <span class="badge bg-info">İşletme</span>
+                                                        break;
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (detail.StartTime.HasValue && detail.EndTime.HasValue)
+                                                {
+                                                    <small>@detail.StartTime.Value.ToString(@"hh\:mm") - @detail.EndTime.Value.ToString(@"hh\:mm")</small>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (!string.IsNullOrEmpty(detail.LeaveInfo) || detail.LeaveHours > 0)
+                                                {
+                                                    if (!string.IsNullOrEmpty(detail.LeaveInfo))
+                                                    {
+                                                        <small>@detail.LeaveInfo</small>
+                                            
+                                                        <br>
+                                                    }
+                                                    if (detail.LeaveHours > 0)
+                                                    {
+                                                        <span class="badge bg-warning">@detail.LeaveHours saat</span>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (!string.IsNullOrEmpty(detail.TrainingInfo) || detail.TrainingHours > 0)
+                                                {
+                                                    if (!string.IsNullOrEmpty(detail.TrainingInfo))
+                                                    {
+                                                        <small>@detail.TrainingInfo</small>
+                                            
+                                                        <br>
+                                                    }
+                                                    if (detail.TrainingHours > 0)
+                                                    {
+                                                        <span class="badge bg-info">@detail.TrainingHours saat</span>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (detail.HasMealAllowance)
+                                                {
+                                                    <i class="fas fa-check text-success"></i>
+                                                }
+                                                else
+                                                {
+                                                    <i class="fas fa-times text-muted"></i>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Durum ve Onay Bilgileri -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-check-circle"></i> Onay Durumu</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-3">
+                            @switch (Model.Status)
+                            {
+                                case ApprovalStatus.Pending:
+                                    <span class="badge bg-warning fs-6 px-3 py-2">
+                                        <i class="fas fa-clock"></i> Beklemede
+                                    </span>
+                                    break;
+                                case ApprovalStatus.Approved:
+                                    <span class="badge bg-success fs-6 px-3 py-2">
+                                        <i class="fas fa-check"></i> Onaylandı
+                                    </span>
+                                    break;
+                                case ApprovalStatus.Rejected:
+                                    <span class="badge bg-danger fs-6 px-3 py-2">
+                                        <i class="fas fa-times"></i> Reddedildi
+                                    </span>
+                                    break;
+                                case ApprovalStatus.Revision:
+                                    <span class="badge bg-info fs-6 px-3 py-2">
+                                        <i class="fas fa-edit"></i> Revize
+                                    </span>
+                                    break;
+                            }
+                        </div>
+
+                        @if (Model.Status != ApprovalStatus.Pending)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Onaylayan:</label>
+                                <p class="mb-0">@(Model.ApproverName ?? "Bilinmiyor")</p>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Onay Tarihi:</label>
+                                <p class="mb-0">@Model.ApprovalDate?.ToString("dd.MM.yyyy HH:mm")</p>
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(Model.ApprovalNote))
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">
+                                        @(Model.Status == ApprovalStatus.Approved ? "Onay Notu:" : "Red Nedeni:")
+                                    </label>
+                                    <div class="@(Model.Status == ApprovalStatus.Approved ? "bg-success" : "bg-danger") bg-opacity-10 p-3 rounded">
+                                        @Model.ApprovalNote
+                                    </div>
+                                </div>
+                            }
+                        }
+
+                        @if (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision)
+                        {
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-success" onclick="showApproveModal()">
+                                    <i class="fas fa-check"></i> Onayla
+                                </button>
+                                <button type="button" class="btn btn-danger" onclick="showRejectModal()">
+                                    <i class="fas fa-times"></i> Reddet
+                                </button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Onay Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Puantajı Onayla</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="Approve" method="post">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>@Model.Intern.FullName</strong> adlı stajyerin puantajını onaylamak istediğinizden emin misiniz?
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Onay Notu (Opsiyonel):</label>
+                        <textarea name="approvalNote" class="form-control" rows="3"
+                                  placeholder="Onay ile ilgili not ekleyebilirsiniz..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-success">Onayla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Red Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Puantajı Reddet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-action="Reject" method="post">
+                <input type="hidden" name="id" value="@Model.Id" />
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>@Model.Intern.FullName</strong> adlı stajyerin puantajını reddetmek istediğinizden emin misiniz?
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Red Nedeni <span class="text-danger">*</span></label>
+                        <textarea name="rejectionReason" class="form-control" rows="3"
+                                  placeholder="Puantajın red nedenini açıklayın..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-danger">Reddet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function showApproveModal() {
+            new bootstrap.Modal(document.getElementById('approveModal')).show();
+        }
+
+        function showRejectModal() {
+            new bootstrap.Modal(document.getElementById('rejectModal')).show();
+        }
+    </script>
+}
+
+@{
+    Html.AntiForgeryToken();
+}

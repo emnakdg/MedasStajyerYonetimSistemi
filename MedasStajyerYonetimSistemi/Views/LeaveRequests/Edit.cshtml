@@ -1,0 +1,216 @@
+﻿@model MedasStajyerYonetimSistemi.Models.LeaveRequest
+
+@{
+    ViewData["Title"] = "İzin Talebini Düzenle";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h3><i class="fas fa-edit"></i> İzin Talebini Düzenle</h3>
+            </div>
+            <div class="card-body">
+                <form asp-action="Edit" method="post" id="editLeaveForm">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                    <input type="hidden" asp-for="Id" />
+                    <input type="hidden" asp-for="Status" />
+                    <input type="hidden" asp-for="CreatedDate" />
+                    <input type="hidden" asp-for="ApprovalDate" />
+                    <input type="hidden" asp-for="ApproverId" />
+                    <input type="hidden" asp-for="ApproverName" />
+                    <input type="hidden" asp-for="ApprovalNote" />
+                    <input type="hidden" asp-for="TotalDays" />
+                    <input type="hidden" asp-for="TotalHours" />
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="InternId" class="form-label">
+                                    Stajyer <span class="text-danger">*</span>
+                                </label>
+                                <select asp-for="InternId" class="form-select" asp-items="ViewBag.InternId">
+                                    <option value="">-- Stajyer Seçin --</option>
+                                </select>
+                                <span asp-validation-for="InternId" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="LeaveType" class="form-label">
+                                    İzin Türü <span class="text-danger">*</span>
+                                </label>
+                                <select asp-for="LeaveType" class="form-select" asp-items="ViewBag.LeaveTypes">
+                                    <option value="">-- İzin Türü Seçin --</option>
+                                </select>
+                                <span asp-validation-for="LeaveType" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="StartDateTime" class="form-label">
+                                    Çıkması Gereken Tarih/Saat <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="StartDateTime" type="datetime-local" class="form-control" id="startDateTime" />
+                                <span asp-validation-for="StartDateTime" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label asp-for="EndDateTime" class="form-label">
+                                    Dönmesi Gereken Tarih/Saat <span class="text-danger">*</span>
+                                </label>
+                                <input asp-for="EndDateTime" type="datetime-local" class="form-control" id="endDateTime" />
+                                <span asp-validation-for="EndDateTime" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Toplam Gün Sayısı</label>
+                                <input type="text" class="form-control" id="totalDays" readonly
+                                       placeholder="Tarih seçildikten sonra hesaplanacak" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Toplam Saat</label>
+                                <input type="text" class="form-control" id="totalHours" readonly
+                                       placeholder="Tarih seçildikten sonra hesaplanacak" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Reason" class="form-label">İzin/Görev Sebebi</label>
+                        <textarea asp-for="Reason" class="form-control" rows="4"
+                                  placeholder="İzin talebinizle ilgili açıklama yazabilirsiniz..."></textarea>
+                        <span asp-validation-for="Reason" class="text-danger"></span>
+                        <div class="form-text">Maksimum 500 karakter</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                <input asp-for="IsManualEntry" class="form-check-input" type="checkbox" />
+                                <label asp-for="IsManualEntry" class="form-check-label">
+                                    Manuel Form
+                                </label>
+                                <div class="form-text">Manuel olarak girilen izin talepleri için işaretleyin</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-3">
+                                <input asp-for="ShouldReflectToTimesheet" class="form-check-input" type="checkbox" />
+                                <label asp-for="ShouldReflectToTimesheet" class="form-check-label">
+                                    Puantaja Yansıt
+                                </label>
+                                <div class="form-text">İzin puantaj sistemine yansıtılsın mı?</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Uyarı:</strong> Bu izin talebi sadece "Beklemede" durumunda olduğu için düzenlenebilir.
+                        Değişiklikler kaydedildikten sonra tekrar onay sürecine girecektir.
+                        <hr>
+                        <small>
+                            <strong>İzin Hesaplama:</strong> Çalışma saatleri 08:30-17:30 arası hesaplanır.
+                            Dönüş tarihi iş başı yapacağınız gün ve saattir.
+                        </small>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> İptal
+                            </a>
+                            <a asp-action="Index" class="btn btn-outline-secondary">
+                                <i class="fas fa-list"></i> Listeye Dön
+                            </a>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Değişiklikleri Kaydet
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const startDateTimeInput = document.getElementById('startDateTime');
+            const endDateTimeInput = document.getElementById('endDateTime');
+            const totalDaysInput = document.getElementById('totalDays');
+            const totalHoursInput = document.getElementById('totalHours');
+
+            // Şu anki tarih ve saati minimum tarih olarak ayarla
+            const now = new Date();
+            const nowString = now.toISOString().slice(0, 16);
+            startDateTimeInput.min = nowString;
+            endDateTimeInput.min = nowString;
+
+            function calculateTotals() {
+                if (startDateTimeInput.value && endDateTimeInput.value) {
+                    const startDate = new Date(startDateTimeInput.value);
+                    const endDate = new Date(endDateTimeInput.value);
+
+                    if (endDate >= startDate) {
+                        const timeDiff = endDate.getTime() - startDate.getTime();
+                        const dayDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+                        const hourDiff = (timeDiff / (1000 * 3600)).toFixed(2);
+
+                        totalDaysInput.value = dayDiff + ' gün';
+                        totalHoursInput.value = hourDiff + ' saat';
+                        totalDaysInput.className = 'form-control text-success fw-bold';
+                        totalHoursInput.className = 'form-control text-success fw-bold';
+                    } else {
+                        totalDaysInput.value = 'Geçersiz tarih aralığı';
+                        totalHoursInput.value = 'Geçersiz tarih aralığı';
+                        totalDaysInput.className = 'form-control text-danger';
+                        totalHoursInput.className = 'form-control text-danger';
+                    }
+                } else {
+                    totalDaysInput.value = '';
+                    totalHoursInput.value = '';
+                    totalDaysInput.className = 'form-control';
+                    totalHoursInput.className = 'form-control';
+                }
+            }
+
+            startDateTimeInput.addEventListener('change', function() {
+                // Başlangıç tarihi değiştiğinde bitiş tarihinin minimum değerini güncelle
+                endDateTimeInput.min = this.value;
+                calculateTotals();
+            });
+
+            endDateTimeInput.addEventListener('change', calculateTotals);
+
+            // Sayfa yüklendiğinde de hesapla
+            calculateTotals();
+        });
+
+        // Form validation
+        document.querySelector('#editLeaveForm').addEventListener('submit', function(e) {
+            const startDateTime = new Date(document.getElementById('startDateTime').value);
+            const endDateTime = new Date(document.getElementById('endDateTime').value);
+
+            if (endDateTime < startDateTime) {
+                e.preventDefault();
+                alert('Dönüş tarihi çıkış tarihinden önce olamaz!');
+                return false;
+            }
+        });
+    </script>
+}
