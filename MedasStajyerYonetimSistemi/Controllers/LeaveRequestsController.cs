@@ -1,8 +1,4 @@
-﻿// ============================================================================
-// Controllers/LeaveRequestsController.cs - İzin Talepleri Controller'ı (Gerçek Model'e Uygun)
-// ============================================================================
-
-using MedasStajyerYonetimSistemi.Data;
+﻿using MedasStajyerYonetimSistemi.Data;
 using MedasStajyerYonetimSistemi.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -22,9 +18,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             _userManager = userManager;
         }
 
-        // ========================================================================
         // GET: LeaveRequests - İzin Talepleri Listesi
-        // ========================================================================
         public async Task<IActionResult> Index(string status = "All", int page = 1)
         {
             var query = _context.LeaveRequests
@@ -65,9 +59,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequests);
         }
 
-        // ========================================================================
         // GET: LeaveRequests/Details/5 - İzin Talebi Detayları
-        // ========================================================================
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null) return NotFound();
@@ -83,9 +75,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // ========================================================================
         // GET: LeaveRequests/Create - Yeni İzin Talebi
-        // ========================================================================
         public async Task<IActionResult> Create()
         {
             await PopulateDropDowns();
@@ -100,9 +90,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(model);
         }
 
-        // ========================================================================
         // POST: LeaveRequests/Create - Yeni İzin Talebi Kaydet
-        // ========================================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(LeaveRequest leaveRequest)
@@ -178,9 +166,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // ========================================================================
-        // GET: LeaveRequests/Edit/5 - İzin Talebini Düzenle (Sadece Pending olanlar)
-        // ========================================================================
+        // GET: LeaveRequests/Edit - İzin Talebini Düzenle (Sadece beklemede olanlar)
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
@@ -198,9 +184,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // ========================================================================
-        // POST: LeaveRequests/Edit/5 - İzin Talebini Güncelle
-        // ========================================================================
+        // POST: LeaveRequests/Edit - İzin Talebini Güncelle
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, LeaveRequest leaveRequest)
@@ -285,9 +269,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // ========================================================================
-        // POST: LeaveRequests/Approve/5 - İzin Talebini Onayla
-        // ========================================================================
+        // POST: LeaveRequests/Approve - İzin Talebini Onayla
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Approve(int id, string? approvalNote = null)
@@ -316,9 +298,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             _context.Update(leaveRequest);
             await _context.SaveChangesAsync();
 
-            // ============================================================================
-            // YENİ: İzin onaylandıktan sonra puantaja yansıt
-            // ============================================================================
+            // İzin onaylandıktan sonra puantaja yansıt
             if (leaveRequest.ShouldReflectToTimesheet)
             {
                 await ReflectLeaveToTimesheet(leaveRequest);
@@ -328,160 +308,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        // ========================================================================
-        // YENİ HELPER METHOD: İzni Puantaja Yansıt
-        // ========================================================================
-        private async Task ReflectLeaveToTimesheet(LeaveRequest leaveRequest)
-        {
-            try
-            {
-                // İzin tarihlerini al
-                var leaveStartDate = leaveRequest.StartDateTime.Date;
-                var leaveEndDate = leaveRequest.EndDateTime.Date;
-
-                // İzin kapsamındaki tarihlerde puantaj detaylarını bul
-                var affectedTimesheets = await _context.Timesheets
-                    .Include(t => t.TimesheetDetails)
-                    .Where(t => t.InternId == leaveRequest.InternId)
-                    .Where(t => t.PeriodDate.Year >= leaveStartDate.Year &&
-                               t.PeriodDate.Month >= leaveStartDate.Month)
-                    .ToListAsync();
-
-                foreach (var timesheet in affectedTimesheets)
-                {
-                    bool timesheetUpdated = false;
-                    string leaveDescription = GetLeaveTypeDescription(leaveRequest.LeaveType);
-
-                    // Bu puantajdaki izin kapsamına giren günleri bul
-                    var affectedDetails = timesheet.TimesheetDetails
-                        .Where(d => d.WorkDate >= leaveStartDate && d.WorkDate <= leaveEndDate)
-                        .ToList();
-
-                    foreach (var detail in affectedDetails)
-                    {
-                        // İzin saatini hesapla (o gün için)
-                        var leaveHoursForDay = CalculateLeaveHoursForDay(leaveRequest, detail.WorkDate);
-
-                        if (leaveHoursForDay > 0)
-                        {
-                            // İzin bilgilerini ekle/güncelle
-                            detail.LeaveInfo = string.IsNullOrEmpty(detail.LeaveInfo)
-                                ? leaveDescription
-                                : $"{detail.LeaveInfo}, {leaveDescription}";
-
-                            detail.LeaveHours += leaveHoursForDay;
-
-                            // Eğer tam gün izinse devamsızlık olarak işaretle
-                            if (leaveHoursForDay >= 8)
-                            {
-                                detail.IsPresent = false;
-                                detail.StartTime = null;
-                                detail.EndTime = null;
-                                detail.HasMealAllowance = false;
-                            }
-
-                            timesheetUpdated = true;
-                        }
-                    }
-
-                    if (timesheetUpdated)
-                    {
-                        // Puantaj onaylanmışsa "Revision" durumuna çevir
-                        if (timesheet.Status == ApprovalStatus.Approved)
-                        {
-                            timesheet.Status = ApprovalStatus.Revision;
-                            timesheet.ApprovalNote = $"İzin onayı nedeniyle güncellendi: {leaveDescription}";
-                            timesheet.UpdatedDate = DateTime.Now;
-                        }
-
-                        // Puantaj toplamlarını yeniden hesapla
-                        await UpdateTimesheetTotals(timesheet.Id);
-
-                        _context.Update(timesheet);
-                    }
-                }
-
-                await _context.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't break the approval process
-                Console.WriteLine($"Error reflecting leave to timesheet: {ex.Message}");
-            }
-        }
-
-        // ========================================================================
-        // HELPER: İzin türü açıklaması
-        // ========================================================================
-        private string GetLeaveTypeDescription(LeaveType leaveType)
-        {
-            return leaveType switch
-            {
-                LeaveType.PersonalLeave => "Özel İzin",
-                LeaveType.ExamLeave => "Sınav İzni",
-                LeaveType.HealthLeave => "Sağlık İzni",
-                LeaveType.ExcuseLeave => "Mazeret İzni",
-                LeaveType.UnpaidLeave => "Ücretsiz İzin",
-                _ => "İzin"
-            };
-        }
-
-        // ========================================================================
-        // HELPER: O gün için izin saati hesapla
-        // ========================================================================
-        private decimal CalculateLeaveHoursForDay(LeaveRequest leaveRequest, DateTime workDate)
-        {
-            var leaveStart = leaveRequest.StartDateTime;
-            var leaveEnd = leaveRequest.EndDateTime;
-            var workDay = workDate.Date;
-
-            // İzin bu günü kapsıyor mu?
-            if (workDay < leaveStart.Date || workDay > leaveEnd.Date)
-                return 0;
-
-            // O gün için çalışma saatleri (08:30 - 17:30)
-            var workDayStart = workDay.AddHours(8).AddMinutes(30);
-            var workDayEnd = workDay.AddHours(17).AddMinutes(30);
-
-            // İzin saatlerini o günün çalışma saatleri ile kesiştir
-            var effectiveLeaveStart = leaveStart > workDayStart ? leaveStart : workDayStart;
-            var effectiveLeaveEnd = leaveEnd < workDayEnd ? leaveEnd : workDayEnd;
-
-            // Geçerli aralık var mı?
-            if (effectiveLeaveStart >= effectiveLeaveEnd)
-                return 0;
-
-            var leaveHours = (decimal)(effectiveLeaveEnd - effectiveLeaveStart).TotalHours;
-
-            // Maksimum 8 saat
-            return Math.Min(Math.Round(leaveHours, 1), 8);
-        }
-
-        // ========================================================================
-        // HELPER: Puantaj toplamlarını güncelle (TimesheetsController'dan kopyala)
-        // ========================================================================
-        private async Task UpdateTimesheetTotals(int timesheetId)
-        {
-            var timesheet = await _context.Timesheets
-                .Include(t => t.TimesheetDetails)
-                .FirstOrDefaultAsync(t => t.Id == timesheetId);
-
-            if (timesheet != null)
-            {
-                timesheet.TotalWorkDays = timesheet.TimesheetDetails.Count(d => d.IsPresent);
-                timesheet.TotalLeaveDays = timesheet.TimesheetDetails
-                    .Where(d => d.LeaveHours > 0)
-                    .Sum(d => (int)Math.Ceiling(d.LeaveHours / 8));
-                timesheet.TotalTrainingHours = timesheet.TimesheetDetails.Sum(d => d.TrainingHours);
-                timesheet.UpdatedDate = DateTime.Now;
-
-                _context.Update(timesheet);
-            }
-        }
-
-        // ========================================================================
-        // POST: LeaveRequests/Reject/5 - İzin Talebini Reddet
-        // ========================================================================
+        // POST: LeaveRequests/Reject - İzin Talebini Reddet
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Reject(int id, string rejectionReason)
@@ -520,9 +347,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        // ========================================================================
-        // GET: LeaveRequests/Delete/5 - İzin Talebini Sil
-        // ========================================================================
+        // GET: LeaveRequests/Delete - İzin Talebini Sil
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null) return NotFound();
@@ -537,9 +362,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // ========================================================================
-        // POST: LeaveRequests/Delete/5 - İzin Talebini Sil (Onay)
-        // ========================================================================
+        // POST: LeaveRequests/Delete - İzin Talebini Sil (Onay)
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -567,6 +390,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        // Excel Export
         public async Task<IActionResult> ExportToExcel(string status = "All", DateTime? startDate = null, DateTime? endDate = null)
         {
             var query = _context.LeaveRequests
@@ -677,7 +501,153 @@ namespace MedasStajyerYonetimSistemi.Controllers
             );
         }
 
-        // Helper method - Onay durumu açıklaması
+
+
+        // Helper Methods
+
+        // HELPER: İzni Puantaja Yansıt
+        private async Task ReflectLeaveToTimesheet(LeaveRequest leaveRequest)
+        {
+            try
+            {
+                // İzin tarihlerini al
+                var leaveStartDate = leaveRequest.StartDateTime.Date;
+                var leaveEndDate = leaveRequest.EndDateTime.Date;
+
+                // İzin kapsamındaki tarihlerde puantaj detaylarını bul
+                var affectedTimesheets = await _context.Timesheets
+                    .Include(t => t.TimesheetDetails)
+                    .Where(t => t.InternId == leaveRequest.InternId)
+                    .Where(t => t.PeriodDate.Year >= leaveStartDate.Year &&
+                               t.PeriodDate.Month >= leaveStartDate.Month)
+                    .ToListAsync();
+
+                foreach (var timesheet in affectedTimesheets)
+                {
+                    bool timesheetUpdated = false;
+                    string leaveDescription = GetLeaveTypeDescription(leaveRequest.LeaveType);
+
+                    // Bu puantajdaki izin kapsamına giren günleri bul
+                    var affectedDetails = timesheet.TimesheetDetails
+                        .Where(d => d.WorkDate >= leaveStartDate && d.WorkDate <= leaveEndDate)
+                        .ToList();
+
+                    foreach (var detail in affectedDetails)
+                    {
+                        // İzin saatini hesapla (o gün için)
+                        var leaveHoursForDay = CalculateLeaveHoursForDay(leaveRequest, detail.WorkDate);
+
+                        if (leaveHoursForDay > 0)
+                        {
+                            // İzin bilgilerini ekle/güncelle
+                            detail.LeaveInfo = string.IsNullOrEmpty(detail.LeaveInfo)
+                                ? leaveDescription
+                                : $"{detail.LeaveInfo}, {leaveDescription}";
+
+                            detail.LeaveHours += leaveHoursForDay;
+
+                            // Eğer tam gün izinse devamsızlık olarak işaretle
+                            if (leaveHoursForDay >= 8)
+                            {
+                                detail.IsPresent = false;
+                                detail.StartTime = null;
+                                detail.EndTime = null;
+                                detail.HasMealAllowance = false;
+                            }
+
+                            timesheetUpdated = true;
+                        }
+                    }
+
+                    if (timesheetUpdated)
+                    {
+                        // Puantaj onaylanmışsa "Revision" durumuna çevir
+                        if (timesheet.Status == ApprovalStatus.Approved)
+                        {
+                            timesheet.Status = ApprovalStatus.Revision;
+                            timesheet.ApprovalNote = $"İzin onayı nedeniyle güncellendi: {leaveDescription}";
+                            timesheet.UpdatedDate = DateTime.Now;
+                        }
+
+                        // Puantaj toplamlarını yeniden hesapla
+                        await UpdateTimesheetTotals(timesheet.Id);
+
+                        _context.Update(timesheet);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reflecting leave to timesheet: {ex.Message}");
+            }
+        }
+
+        // HELPER: İzin türü açıklaması
+        private string GetLeaveTypeDescription(LeaveType leaveType)
+        {
+            return leaveType switch
+            {
+                LeaveType.PersonalLeave => "Özel İzin",
+                LeaveType.ExamLeave => "Sınav İzni",
+                LeaveType.HealthLeave => "Sağlık İzni",
+                LeaveType.ExcuseLeave => "Mazeret İzni",
+                LeaveType.UnpaidLeave => "Ücretsiz İzin",
+                _ => "İzin"
+            };
+        }
+
+        // HELPER: O gün için izin saati hesapla
+        private decimal CalculateLeaveHoursForDay(LeaveRequest leaveRequest, DateTime workDate)
+        {
+            var leaveStart = leaveRequest.StartDateTime;
+            var leaveEnd = leaveRequest.EndDateTime;
+            var workDay = workDate.Date;
+
+            // İzin bu günü kapsıyor mu?
+            if (workDay < leaveStart.Date || workDay > leaveEnd.Date)
+                return 0;
+
+            // O gün için çalışma saatleri (08:30 - 17:30)
+            var workDayStart = workDay.AddHours(8).AddMinutes(30);
+            var workDayEnd = workDay.AddHours(17).AddMinutes(30);
+
+            // İzin saatlerini o günün çalışma saatleri ile kesiştir
+            var effectiveLeaveStart = leaveStart > workDayStart ? leaveStart : workDayStart;
+            var effectiveLeaveEnd = leaveEnd < workDayEnd ? leaveEnd : workDayEnd;
+
+            // Geçerli aralık var mı?
+            if (effectiveLeaveStart >= effectiveLeaveEnd)
+                return 0;
+
+            var leaveHours = (decimal)(effectiveLeaveEnd - effectiveLeaveStart).TotalHours;
+
+            // Maksimum 8 saat
+            return Math.Min(Math.Round(leaveHours, 1), 8);
+        }
+
+        // HELPER: Puantaj toplamlarını güncelle (TimesheetsController'dan kopyala)
+        private async Task UpdateTimesheetTotals(int timesheetId)
+        {
+            var timesheet = await _context.Timesheets
+                .Include(t => t.TimesheetDetails)
+                .FirstOrDefaultAsync(t => t.Id == timesheetId);
+
+            if (timesheet != null)
+            {
+                timesheet.TotalWorkDays = timesheet.TimesheetDetails.Count(d => d.IsPresent);
+                timesheet.TotalLeaveDays = timesheet.TimesheetDetails
+                    .Where(d => d.LeaveHours > 0)
+                    .Sum(d => (int)Math.Ceiling(d.LeaveHours / 8));
+                timesheet.TotalTrainingHours = timesheet.TimesheetDetails.Sum(d => d.TrainingHours);
+                timesheet.UpdatedDate = DateTime.Now;
+
+                _context.Update(timesheet);
+            }
+        }
+
+        // HELPER: Onay durumu açıklaması
         private string GetApprovalStatusDescription(ApprovalStatus status)
         {
             return status switch
@@ -691,9 +661,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
             };
         }
 
-        // ========================================================================
-        // Helper Methods
-        // ========================================================================
         private bool LeaveRequestExists(int id)
         {
             return _context.LeaveRequests.Any(e => e.Id == id);

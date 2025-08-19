@@ -1,8 +1,4 @@
-﻿// ============================================================================
-// Controllers/AccountController.cs - Authentication Controller
-// ============================================================================
-
-using MedasStajyerYonetimSistemi.Models;
+﻿using MedasStajyerYonetimSistemi.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
@@ -20,9 +16,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             _userManager = userManager;
         }
 
-        // ========================================================================
         // GET: Account/Login - Giriş Sayfası
-        // ========================================================================
         [HttpGet]
         public IActionResult Login(string? returnUrl = null)
         {
@@ -30,9 +24,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View();
         }
 
-        // ========================================================================
         // POST: Account/Login - Giriş İşlemi
-        // ========================================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(LoginViewModel model, string? returnUrl = null)
@@ -64,9 +56,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(model);
         }
 
-        // ========================================================================
         // POST: Account/Logout - Çıkış İşlemi
-        // ========================================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
@@ -75,18 +65,14 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction("Index", "Home");
         }
 
-        // ========================================================================
         // GET: Account/Register - Kayıt Sayfası (Opsiyonel)
-        // ========================================================================
         [HttpGet]
         public IActionResult Register()
         {
             return View();
         }
 
-        // ========================================================================
         // POST: Account/Register - Kayıt İşlemi (Opsiyonel)
-        // ========================================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Register(RegisterViewModel model)
@@ -123,9 +109,10 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
     }
 
-    // ========================================================================
+
     // ViewModels
-    // ========================================================================
+
+    // LoginViewModel - Giriş Formu Modeli
     public class LoginViewModel
     {
         [Required(ErrorMessage = "E-posta adresi gereklidir")]
@@ -142,6 +129,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
         public bool RememberMe { get; set; }
     }
 
+    // RegisterViewModel - Kayıt Formu Modeli
     public class RegisterViewModel
     {
         [Required(ErrorMessage = "E-posta adresi gereklidir")]

@@ -1,8 +1,4 @@
-﻿// ============================================================================
-// Controllers/InternsController.cs - Stajyer Yönetim Controller'ı
-// ============================================================================
-
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
 using MedasStajyerYonetimSistemi.Data;
 using MedasStajyerYonetimSistemi.Models;
 using Microsoft.AspNetCore.Identity;
@@ -23,9 +19,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             _userManager = userManager;
         }
 
-        // ========================================================================
         // GET: Interns - Stajyer Listesi
-        // ========================================================================
         public async Task<IActionResult> Index(string sortBy = "FullName", string searchTerm = "", int page = 1)
         {
             var query = _context.Interns
@@ -69,9 +63,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(interns);
         }
 
-        // ========================================================================
-        // GET: Interns/Details/5 - Stajyer Detayları
-        // ========================================================================
+        // GET: Interns/Details - Stajyer Detayları
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null)
@@ -93,9 +85,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(intern);
         }
 
-        // ========================================================================
         // GET: Interns/Create - Yeni Stajyer Formu
-        // ========================================================================
         //[Authorize(Roles = "Admin,HR")]
         public async Task<IActionResult> Create()
         {
@@ -103,9 +93,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View();
         }
 
-        // ========================================================================
         // POST: Interns/Create - Yeni Stajyer Kaydet
-        // ========================================================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         //[Authorize(Roles = "Admin,HR")]
@@ -152,9 +140,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(intern);
         }
 
-        // ========================================================================
-        // GET: Interns/Edit/5 - Stajyer Düzenle
-        // ========================================================================
+        // GET: Interns/Edit - Stajyer Düzenle
         //[Authorize(Roles = "Admin,HR")]
         public async Task<IActionResult> Edit(int? id)
         {
@@ -173,9 +159,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(intern);
         }
 
-        // ========================================================================
-        // POST: Interns/Edit/5 - Stajyer Güncelle
-        // ========================================================================
+        // POST: Interns/Edit - Stajyer Güncelle
         [HttpPost]
         [ValidateAntiForgeryToken]
         //[Authorize(Roles = "Admin,HR")]
@@ -225,9 +209,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(intern);
         }
 
-        // ========================================================================
         // GET: Interns/Delete/5 - Stajyer Sil (Soft Delete)
-        // ========================================================================
         //[Authorize(Roles = "Admin,HR")]
         public async Task<IActionResult> Delete(int? id)
         {
@@ -248,9 +230,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(intern);
         }
 
-        // ========================================================================
         // POST: Interns/Delete/5 - Stajyer Sil (Onay)
-        // ========================================================================
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         //[Authorize(Roles = "Admin,HR")]
@@ -296,9 +276,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // ========================================================================
         // Excel Export - Stajyer Listesi Dışa Aktar
-        // ========================================================================
         //[Authorize(Roles = "Admin,HR,Supervisor")]
         public async Task<IActionResult> ExportToExcel()
         {
@@ -374,7 +352,11 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 fileName);
         }
 
-        // Helper method for InternshipType display name
+
+        // Helper methodları
+
+
+        // Staj Türü için Display Name alma
         private string GetInternshipTypeDisplayName(InternshipType internshipType)
         {
             return internshipType switch
@@ -387,9 +369,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             };
         }
 
-        // ========================================================================
         // API: Stajyer Arama (AutoComplete için)
-        // ========================================================================
         [HttpGet]
         public async Task<JsonResult> SearchInterns(string term)
         {
@@ -408,14 +388,16 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return Json(interns);
         }
 
-        // ========================================================================
-        // Private Helper Methods
-        // ========================================================================
+
+        // Private Helper Methodları
+
+        // Stajyer ID kontrolü
         private bool InternExists(int id)
         {
             return _context.Interns.Any(e => e.Id == id);
         }
 
+        // DropDown'ları doldurmak için kullanılan metod
         private async Task PopulateDropDowns(string? selectedResponsiblePersonId = null)
         {
             // Sorumlu kişiler (HR ve Supervisor rollerindeki kullanıcılar)
@@ -463,6 +445,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
     }
 }
 
+// Görünen Ad için Enum Extensions
 public static class EnumExtensions
 {
     public static string GetDisplayName(this Enum enumValue)
