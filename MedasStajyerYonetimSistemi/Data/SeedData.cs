@@ -138,8 +138,83 @@ namespace MedasStajyerYonetimSistemi.Data
                     await userManager.AddToRoleAsync(personelUser, "PersonelIsleri");
                 }
             }
+
+
+
+            // Stajyer 1 - Hatice BAKICI
+            var intern1Email = "hatice.bakici@medas.com.tr";
+            if (await userManager.FindByEmailAsync(intern1Email) == null)
+            {
+                var intern1User = new ApplicationUser
+                {
+                    UserName = intern1Email,
+                    Email = intern1Email,
+                    FullName = "Hatice BAKICI",
+                    Department = "İnsan Kaynakları ve Organizasyon Metot Müdürlüğü",
+                    Title = "Stajyer",
+                    EmployeeNumber = "STJ001",
+                    EmailConfirmed = true,
+                    IsActive = true
+                };
+
+                var result = await userManager.CreateAsync(intern1User, "Staj123!");
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(intern1User, "Intern");
+                }
+            }
+
+            // Stajyer 2 - Ali KAYA
+            var intern2Email = "ali.kaya@medas.com.tr";
+            if (await userManager.FindByEmailAsync(intern2Email) == null)
+            {
+                var intern2User = new ApplicationUser
+                {
+                    UserName = intern2Email,
+                    Email = intern2Email,
+                    FullName = "Ali KAYA",
+                    Department = "Bilgi İşlem Müdürlüğü",
+                    Title = "Stajyer",
+                    EmployeeNumber = "STJ002",
+                    EmailConfirmed = true,
+                    IsActive = true
+                };
+
+                var result = await userManager.CreateAsync(intern2User, "Staj123!");
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(intern2User, "Intern");
+                }
+            }
+
+            // Stajyer 3 - Zehra ÖZKAN
+            var intern3Email = "zehra.ozkan@medas.com.tr";
+            if (await userManager.FindByEmailAsync(intern3Email) == null)
+            {
+                var intern3User = new ApplicationUser
+                {
+                    UserName = intern3Email,
+                    Email = intern3Email,
+                    FullName = "Zehra ÖZKAN",
+                    Department = "Teknik İşler Müdürlüğü",
+                    Title = "Stajyer",
+                    EmployeeNumber = "STJ003",
+                    EmailConfirmed = true,
+                    IsActive = true
+                };
+
+                var result = await userManager.CreateAsync(intern3User, "Staj123!");
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(intern3User, "Intern");
+                }
+            }
         }
 
+
+
+
+        // Stajyer verilerini de güncelle - email'ler uyumlu olsun
         private static async Task CreateInterns(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
         {
             if (context.Interns.Any())
@@ -147,90 +222,90 @@ namespace MedasStajyerYonetimSistemi.Data
                 return; // Zaten stajyer var
             }
 
-            var hrUser = await userManager.FindByEmailAsync("ayskozan@medas.com.tr");
-            var supervisorUser = await userManager.FindByEmailAsync("supervisor@medas.com.tr");
+            // Sorumlu kişiyi bul
+            var responsibleUser = await userManager.FindByEmailAsync("ayskozan@medas.com.tr");
 
             var interns = new List<Intern>
-            {
-                new Intern
-                {
-                    FullName = "Hatice BAKICI",
-                    Address = "Konya/Selçuklu",
-                    PhoneNumber = "555-555-5555",
-                    Email = "hatice.bakici@student.edu.tr",
-                    Company = "MEDAŞ",
-                    Department = "İnsan Kaynakları ve Organizasyon Metot Müdürlüğü",
-                    ResponsiblePerson = "Ayşe KOZAN",
-                    ResponsiblePersonId = hrUser?.Id,
-                    School = "Hekimoğlu ML",
-                    Major = "Bilişim",
-                    WorkDays = "Çarşamba-Perşembe-Cuma",
-                    EmergencyContactName = "Ramazan BAKICI",
-                    EmergencyContactPhone = "505-555-5555",
-                    SchoolSupervisorName = "Celal ŞENGÖR",
-                    SchoolSupervisorPhone = "505-666-6666",
-                    InternshipType = InternshipType.SummerInternship,
-                    Workplace = "GM Büro",
-                    CompanyEmployeeNumber = "STJ001",
-                    EmployeeNumber = "STJ001",
-                    IsFromCloudoffix = true,
-                    InternshipStartDate = DateTime.Now.AddDays(-30),
-                    InternshipEndDate = DateTime.Now.AddDays(30),
-                    IsActive = true
-                },
-                new Intern
-                {
-                    FullName = "Mehmet YILMAZ",
-                    Address = "Ankara/Çankaya",
-                    PhoneNumber = "533-444-3333",
-                    Email = "mehmet.yilmaz@student.edu.tr",
-                    Company = "MEDAŞ",
-                    Department = "Bilgi İşlem Müdürlüğü",
-                    ResponsiblePerson = "Ahmet DEMİR",
-                    ResponsiblePersonId = supervisorUser?.Id,
-                    School = "Selçuk Üniversitesi",
-                    Major = "Bilgisayar Mühendisliği",
-                    WorkDays = "Pazartesi-Salı-Çarşamba-Perşembe-Cuma",
-                    EmergencyContactName = "Fatma YILMAZ",
-                    EmergencyContactPhone = "544-333-2222",
-                    SchoolSupervisorName = "Prof. Dr. Ali KAYA",
-                    SchoolSupervisorPhone = "505-777-8888",
-                    InternshipType = InternshipType.Talentern,
-                    Workplace = "GM Büro",
-                    CompanyEmployeeNumber = "STJ002",
-                    EmployeeNumber = "STJ002",
-                    IsFromCloudoffix = false,
-                    InternshipStartDate = DateTime.Now.AddDays(-45),
-                    InternshipEndDate = DateTime.Now.AddDays(45),
-                    IsActive = true
-                },
-                new Intern
-                {
-                    FullName = "Zeynep KAYA",
-                    Address = "İstanbul/Kadıköy",
-                    PhoneNumber = "542-123-4567",
-                    Email = "zeynep.kaya@student.edu.tr",
-                    Company = "MEDAŞ",
-                    Department = "İnsan Kaynakları ve Organizasyon Metot Müdürlüğü",
-                    ResponsiblePerson = "Ayşe KOZAN",
-                    ResponsiblePersonId = hrUser?.Id,
-                    School = "Boğaziçi Üniversitesi",
-                    Major = "İşletme",
-                    WorkDays = "Pazartesi-Çarşamba-Cuma",
-                    EmergencyContactName = "Mehmet KAYA",
-                    EmergencyContactPhone = "532-987-6543",
-                    SchoolSupervisorName = "Dr. Elif ÖZKAN",
-                    SchoolSupervisorPhone = "505-111-2233",
-                    InternshipType = InternshipType.KozaProject,
-                    Workplace = "İşletme",
-                    CompanyEmployeeNumber = "STJ003",
-                    EmployeeNumber = "STJ003",
-                    IsFromCloudoffix = true,
-                    InternshipStartDate = DateTime.Now.AddDays(-20),
-                    InternshipEndDate = DateTime.Now.AddDays(40),
-                    IsActive = true
-                }
-            };
+    {
+        new Intern
+        {
+            FullName = "Hatice BAKICI",
+            Address = "Konya/Selçuklu",
+            PhoneNumber = "555-555-5555",
+            Email = "hatice.bakici@medas.com.tr", // Kullanıcı adıyla uyumlu
+            Company = "MEDAŞ",
+            Department = "İnsan Kaynakları ve Organizasyon Metot Müdürlüğü",
+            ResponsiblePerson = "Ayşe KOZAN",
+            ResponsiblePersonId = responsibleUser?.Id,
+            School = "Hekimoğlu ML",
+            Major = "Bilişim",
+            WorkDays = "Çarşamba-Perşembe-Cuma",
+            EmergencyContactName = "Ramazan BAKICI",
+            EmergencyContactPhone = "505-555-5555",
+            SchoolSupervisorName = "Celal ŞENGÖR",
+            SchoolSupervisorPhone = "505-666-6666",
+            InternshipType = InternshipType.SummerInternship,
+            Workplace = "GM Büro",
+            CompanyEmployeeNumber = "STJ001",
+            EmployeeNumber = "STJ001",
+            IsFromCloudoffix = true,
+            InternshipStartDate = DateTime.Now.AddDays(-30),
+            InternshipEndDate = DateTime.Now.AddDays(30),
+            IsActive = true
+        },
+        new Intern
+        {
+            FullName = "Ali KAYA",
+            Address = "Konya/Meram",
+            PhoneNumber = "555-666-7777",
+            Email = "ali.kaya@medas.com.tr", // Kullanıcı adıyla uyumlu
+            Company = "MEDAŞ",
+            Department = "Bilgi İşlem Müdürlüğü",
+            ResponsiblePerson = "Ahmet DEMİR",
+            ResponsiblePersonId = responsibleUser?.Id,
+            School = "Selçuk Üniversitesi",
+            Major = "Bilgisayar Mühendisliği",
+            WorkDays = "Pazartesi-Salı-Çarşamba-Perşembe-Cuma",
+            EmergencyContactName = "Mehmet KAYA",
+            EmergencyContactPhone = "505-777-8888",
+            SchoolSupervisorName = "Dr. Ahmet YİĞİT",
+            SchoolSupervisorPhone = "505-888-9999",
+            InternshipType = InternshipType.Talentern,
+            Workplace = "İşletme",
+            CompanyEmployeeNumber = "STJ002",
+            EmployeeNumber = "STJ002",
+            IsFromCloudoffix = true,
+            InternshipStartDate = DateTime.Now.AddDays(-25),
+            InternshipEndDate = DateTime.Now.AddDays(35),
+            IsActive = true
+        },
+        new Intern
+        {
+            FullName = "Zehra ÖZKAN",
+            Address = "Konya/Karatay",
+            PhoneNumber = "555-777-8888",
+            Email = "zehra.ozkan@medas.com.tr", // Kullanıcı adıyla uyumlu
+            Company = "MEDAŞ",
+            Department = "Teknik İşler Müdürlüğü",
+            ResponsiblePerson = "Elif ÖZKAN",
+            ResponsiblePersonId = responsibleUser?.Id,
+            School = "KTO Karatay Üniversitesi",
+            Major = "Elektrik Mühendisliği",
+            WorkDays = "Pazartesi-Salı-Çarşamba-Perşembe-Cuma",
+            EmergencyContactName = "Fatma ÖZKAN",
+            EmergencyContactPhone = "505-888-9999",
+            SchoolSupervisorName = "Prof. Dr. Mehmet ÖZKAN",
+            SchoolSupervisorPhone = "505-999-1111",
+            InternshipType = InternshipType.KozaProject,
+            Workplace = "İşletme",
+            CompanyEmployeeNumber = "STJ003",
+            EmployeeNumber = "STJ003",
+            IsFromCloudoffix = true,
+            InternshipStartDate = DateTime.Now.AddDays(-20),
+            InternshipEndDate = DateTime.Now.AddDays(40),
+            IsActive = true
+        }
+    };
 
             context.Interns.AddRange(interns);
         }

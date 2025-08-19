@@ -1,5 +1,7 @@
-﻿using MedasStajyerYonetimSistemi.Data;
+﻿using ClosedXML.Excel;
+using MedasStajyerYonetimSistemi.Data;
 using MedasStajyerYonetimSistemi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -7,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedasStajyerYonetimSistemi.Controllers
 {
+    [Authorize] // Temel authorization - giriş yapmış olmalı
     public class LeaveRequestsController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -19,12 +22,24 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
         // GET: LeaveRequests - İzin Talepleri Listesi
+        // Stajyerler sadece kendi izinlerini, diğerleri herkesi görebilir
         public async Task<IActionResult> Index(string status = "All", int page = 1)
         {
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
             var query = _context.LeaveRequests
                 .Include(lr => lr.Intern)
                 .Include(lr => lr.Approver)
                 .AsQueryable();
+
+            // Eğer stajyer ise sadece kendi izinlerini görsün
+            if (userRoles.Contains("Intern"))
+            {
+                // Stajyer kendi email'i ile eşleşen izin taleplerini görebilir
+                query = query.Where(lr => lr.Intern.Email == currentUser.Email);
+            }
+            // HR, Admin, Supervisor, PersonelIsleri herkesi görebilir
 
             // Status filtresi
             if (status != "All" && Enum.TryParse<ApprovalStatus>(status, out var statusEnum))
@@ -56,13 +71,21 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 new() { Value = "Rejected", Text = "Reddedildi" }
             };
 
+            // Kullanıcı rolü bilgisini view'a gönder
+            ViewBag.IsIntern = userRoles.Contains("Intern");
+            ViewBag.CanApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
+
             return View(leaveRequests);
         }
 
         // GET: LeaveRequests/Details/5 - İzin Talebi Detayları
+        // Stajyerler sadece kendi izin detaylarını görebilir
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null) return NotFound();
+
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
 
             var leaveRequest = await _context.LeaveRequests
                 .Include(lr => lr.Intern)
@@ -72,12 +95,26 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (leaveRequest == null) return NotFound();
 
+            // Eğer stajyer ise sadece kendi izin detaylarını görebilir
+            if (userRoles.Contains("Intern") && leaveRequest.Intern.Email != currentUser.Email)
+            {
+                TempData["ErrorMessage"] = "Bu izin talebine erişim yetkiniz bulunmamaktadır.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            ViewBag.CanApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
+            ViewBag.IsIntern = userRoles.Contains("Intern");
+
             return View(leaveRequest);
         }
 
         // GET: LeaveRequests/Create - Yeni İzin Talebi
+        // Herkes izin talebi oluşturabilir ama giriş yapmış olmalı
         public async Task<IActionResult> Create()
         {
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
             await PopulateDropDowns();
 
             var model = new LeaveRequest
@@ -87,6 +124,20 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 CreatedDate = DateTime.Now
             };
 
+            // Eğer stajyer ise kendi kaydını otomatik seç
+            if (userRoles.Contains("Intern"))
+            {
+                var internRecord = await _context.Interns
+                    .FirstOrDefaultAsync(i => i.Email == currentUser.Email);
+
+                if (internRecord != null)
+                {
+                    model.InternId = internRecord.Id;
+                    ViewBag.IsInternUser = true;
+                    ViewBag.InternName = internRecord.FullName;
+                }
+            }
+
             return View(model);
         }
 
@@ -95,21 +146,13 @@ namespace MedasStajyerYonetimSistemi.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(LeaveRequest leaveRequest)
         {
-            Console.WriteLine("=== CREATE POST ACTION CALLED ===");
-            Console.WriteLine($"InternId: {leaveRequest.InternId}");
-            Console.WriteLine($"LeaveType: {leaveRequest.LeaveType}");
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            // Navigation property hatalarını temizle
             ModelState.Remove("Intern");
             ModelState.Remove("Approver");
             ModelState.Remove("ApprovalHistories");
-            Console.WriteLine($"ModelState IsValid: {ModelState.IsValid}");
-
-            if (!ModelState.IsValid)
-            {
-                foreach (var error in ModelState)
-                {
-                    Console.WriteLine($"Key: {error.Key}, Errors: {string.Join(", ", error.Value.Errors.Select(e => e.ErrorMessage))}");
-                }
-            }
 
             // Tarih kontrolü
             if (leaveRequest.StartDateTime > leaveRequest.EndDateTime)
@@ -121,6 +164,22 @@ namespace MedasStajyerYonetimSistemi.Controllers
             if (leaveRequest.StartDateTime < DateTime.Now.Date)
             {
                 ModelState.AddModelError("StartDateTime", "Geçmiş tarihli izin talebi oluşturulamaz.");
+            }
+
+            // Eğer stajyer ise sadece kendi adına izin oluşturabilir
+            if (userRoles.Contains("Intern"))
+            {
+                var internRecord = await _context.Interns
+                    .FirstOrDefaultAsync(i => i.Email == currentUser.Email);
+
+                if (internRecord == null)
+                {
+                    ModelState.AddModelError("", "Stajyer kaydınız bulunamadı. Lütfen yöneticinize başvurun.");
+                }
+                else if (leaveRequest.InternId != internRecord.Id)
+                {
+                    ModelState.AddModelError("", "Sadece kendi adınıza izin talebi oluşturabilirsiniz.");
+                }
             }
 
             if (ModelState.IsValid)
@@ -145,10 +204,10 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     return View(leaveRequest);
                 }
 
-                // Manuel entry kontrolü
-                if (leaveRequest.IsManualEntry)
+                // Manuel entry kontrolü (sadece HR/Admin manuel izin oluşturabilir)
+                if (!userRoles.Contains("Intern"))
                 {
-                    var currentUser = await _userManager.GetUserAsync(User);
+                    leaveRequest.IsManualEntry = true;
                     leaveRequest.ManualEntryBy = currentUser?.UserName;
                 }
 
@@ -166,18 +225,32 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // GET: LeaveRequests/Edit - İzin Talebini Düzenle (Sadece beklemede olanlar)
+        // GET: LeaveRequests/Edit - İzin Talebini Düzenle
+        // Sadece beklemede olan talepleri düzenleyebilir ve kendi talebi olmalı (stajyer için)
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
 
-            var leaveRequest = await _context.LeaveRequests.FindAsync(id);
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            var leaveRequest = await _context.LeaveRequests
+                .Include(lr => lr.Intern)
+                .FirstOrDefaultAsync(lr => lr.Id == id);
+
             if (leaveRequest == null) return NotFound();
 
             if (leaveRequest.Status != ApprovalStatus.Pending)
             {
                 TempData["ErrorMessage"] = "Sadece beklemede olan izin talepleri düzenlenebilir.";
                 return RedirectToAction(nameof(Details), new { id });
+            }
+
+            // Eğer stajyer ise sadece kendi talebini düzenleyebilir
+            if (userRoles.Contains("Intern") && leaveRequest.Intern.Email != currentUser.Email)
+            {
+                TempData["ErrorMessage"] = "Bu izin talebini düzenleme yetkiniz bulunmamaktadır.";
+                return RedirectToAction(nameof(Index));
             }
 
             await PopulateDropDowns(leaveRequest.InternId);
@@ -189,89 +262,99 @@ namespace MedasStajyerYonetimSistemi.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, LeaveRequest leaveRequest)
         {
-            Console.WriteLine("=== EDIT POST ACTION CALLED ===");
-            Console.WriteLine($"ID: {id}");
-            Console.WriteLine($"LeaveRequest ID: {leaveRequest.Id}");
-            Console.WriteLine($"InternId: {leaveRequest.InternId}");
-            Console.WriteLine($"LeaveType: {leaveRequest.LeaveType}");
-
             if (id != leaveRequest.Id) return NotFound();
 
-            // Navigation property hatalarını temizle
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
             ModelState.Remove("Intern");
             ModelState.Remove("Approver");
             ModelState.Remove("ApprovalHistories");
 
-            Console.WriteLine($"ModelState IsValid: {ModelState.IsValid}");
-
-            if (!ModelState.IsValid)
+            // Tarih kontrolleri
+            if (leaveRequest.StartDateTime > leaveRequest.EndDateTime)
             {
-                foreach (var error in ModelState)
+                ModelState.AddModelError("EndDateTime", "Dönüş tarihi çıkış tarihinden önce olamaz.");
+            }
+
+            if (leaveRequest.StartDateTime < DateTime.Now.Date)
+            {
+                ModelState.AddModelError("StartDateTime", "Geçmiş tarihli izin talebi oluşturulamaz.");
+            }
+
+            if (ModelState.IsValid)
+            {
+                try
                 {
-                    Console.WriteLine($"Key: {error.Key}, Errors: {string.Join(", ", error.Value.Errors.Select(e => e.ErrorMessage))}");
+                    // Mevcut kaydı kontrol et
+                    var existingRequest = await _context.LeaveRequests
+                        .Include(lr => lr.Intern)
+                        .FirstOrDefaultAsync(lr => lr.Id == id);
+
+                    if (existingRequest == null) return NotFound();
+
+                    // Sadece beklemede olanlar düzenlenebilir
+                    if (existingRequest.Status != ApprovalStatus.Pending)
+                    {
+                        TempData["ErrorMessage"] = "Sadece beklemede olan izin talepleri düzenlenebilir.";
+                        return RedirectToAction(nameof(Details), new { id });
+                    }
+
+                    // Eğer stajyer ise sadece kendi talebini düzenleyebilir
+                    if (userRoles.Contains("Intern") && existingRequest.Intern.Email != currentUser.Email)
+                    {
+                        TempData["ErrorMessage"] = "Bu izin talebini düzenleme yetkiniz bulunmamaktadır.";
+                        return RedirectToAction(nameof(Index));
+                    }
+
+                    // Toplam gün ve saat hesaplama
+                    var timeSpan = leaveRequest.EndDateTime - leaveRequest.StartDateTime;
+                    leaveRequest.TotalDays = (int)Math.Ceiling(timeSpan.TotalDays);
+                    leaveRequest.TotalHours = (decimal)timeSpan.TotalHours;
+
+                    // Çakışan izin kontrolü (kendisi hariç)
+                    var conflictingLeave = await _context.LeaveRequests
+                        .Where(lr => lr.InternId == leaveRequest.InternId && lr.Id != id)
+                        .Where(lr => lr.Status == ApprovalStatus.Approved || lr.Status == ApprovalStatus.Pending)
+                        .Where(lr =>
+                            (lr.StartDateTime <= leaveRequest.EndDateTime && lr.EndDateTime >= leaveRequest.StartDateTime))
+                        .FirstOrDefaultAsync();
+
+                    if (conflictingLeave != null)
+                    {
+                        ModelState.AddModelError("", $"Bu tarih aralığında zaten bir izin talebiniz bulunmaktadır. ({conflictingLeave.StartDateTime:dd.MM.yyyy HH:mm} - {conflictingLeave.EndDateTime:dd.MM.yyyy HH:mm})");
+                        await PopulateDropDowns(leaveRequest.InternId);
+                        return View(leaveRequest);
+                    }
+
+                    leaveRequest.UpdatedDate = DateTime.Now;
+                    _context.Update(leaveRequest);
+                    await _context.SaveChangesAsync();
+
+                    TempData["SuccessMessage"] = "İzin talebi başarıyla güncellendi.";
+                    return RedirectToAction(nameof(Details), new { id });
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (!LeaveRequestExists(leaveRequest.Id))
+                    {
+                        return NotFound();
+                    }
+                    else
+                    {
+                        throw;
+                    }
                 }
             }
-            {
-                if (id != leaveRequest.Id) return NotFound();
 
-                // Tarih kontrolü
-                if (leaveRequest.StartDateTime > leaveRequest.EndDateTime)
-                {
-                    ModelState.AddModelError("EndDateTime", "Dönüş tarihi çıkış tarihinden önce olamaz.");
-                }
-
-                if (ModelState.IsValid)
-                {
-                    try
-                    {
-                        // Toplam gün ve saat hesaplama
-                        var timeSpan = leaveRequest.EndDateTime - leaveRequest.StartDateTime;
-                        leaveRequest.TotalDays = (int)Math.Ceiling(timeSpan.TotalDays);
-                        leaveRequest.TotalHours = (decimal)timeSpan.TotalHours;
-
-                        // Çakışan izin kontrolü (kendisi hariç)
-                        var conflictingLeave = await _context.LeaveRequests
-                            .Where(lr => lr.InternId == leaveRequest.InternId && lr.Id != leaveRequest.Id)
-                            .Where(lr => lr.Status == ApprovalStatus.Approved || lr.Status == ApprovalStatus.Pending)
-                            .Where(lr =>
-                                (lr.StartDateTime <= leaveRequest.EndDateTime && lr.EndDateTime >= leaveRequest.StartDateTime))
-                            .FirstOrDefaultAsync();
-
-                        if (conflictingLeave != null)
-                        {
-                            ModelState.AddModelError("", $"Bu tarih aralığında zaten bir izin talebiniz bulunmaktadır. ({conflictingLeave.StartDateTime:dd.MM.yyyy HH:mm} - {conflictingLeave.EndDateTime:dd.MM.yyyy HH:mm})");
-                            await PopulateDropDowns(leaveRequest.InternId);
-                            return View(leaveRequest);
-                        }
-
-                        leaveRequest.UpdatedDate = DateTime.Now;
-                        _context.Update(leaveRequest);
-                        await _context.SaveChangesAsync();
-
-                        TempData["SuccessMessage"] = "İzin talebi başarıyla güncellendi.";
-                    }
-                    catch (DbUpdateConcurrencyException)
-                    {
-                        if (!LeaveRequestExists(leaveRequest.Id))
-                        {
-                            return NotFound();
-                        }
-                        else
-                        {
-                            throw;
-                        }
-                    }
-                    return RedirectToAction(nameof(Index));
-                }
-
-                await PopulateDropDowns(leaveRequest.InternId);
-                return View(leaveRequest);
-            }
+            await PopulateDropDowns(leaveRequest.InternId);
+            return View(leaveRequest);
         }
 
-        // POST: LeaveRequests/Approve - İzin Talebini Onayla
+        // POST: LeaveRequests/Approve - İzin Onaylama (Sadece yetkili roller)
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin,HR,Supervisor")]
         public async Task<IActionResult> Approve(int id, string? approvalNote = null)
         {
             var leaveRequest = await _context.LeaveRequests
@@ -280,9 +363,9 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (leaveRequest == null) return NotFound();
 
-            if (leaveRequest.Status != ApprovalStatus.Pending)
+            if (leaveRequest.Status != ApprovalStatus.Pending && leaveRequest.Status != ApprovalStatus.Revision)
             {
-                TempData["ErrorMessage"] = "Sadece beklemede olan izin talepleri onaylanabilir.";
+                TempData["ErrorMessage"] = "Sadece beklemede veya revize durumundaki talepler onaylanabilir.";
                 return RedirectToAction(nameof(Details), new { id });
             }
 
@@ -298,19 +381,14 @@ namespace MedasStajyerYonetimSistemi.Controllers
             _context.Update(leaveRequest);
             await _context.SaveChangesAsync();
 
-            // İzin onaylandıktan sonra puantaja yansıt
-            if (leaveRequest.ShouldReflectToTimesheet)
-            {
-                await ReflectLeaveToTimesheet(leaveRequest);
-            }
-
             TempData["SuccessMessage"] = $"{leaveRequest.Intern.FullName} adlı stajyerin izin talebi onaylandı.";
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        // POST: LeaveRequests/Reject - İzin Talebini Reddet
+        // POST: LeaveRequests/Reject - İzin Reddetme (Sadece yetkili roller)
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin,HR,Supervisor")]
         public async Task<IActionResult> Reject(int id, string rejectionReason)
         {
             var leaveRequest = await _context.LeaveRequests
@@ -319,9 +397,9 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (leaveRequest == null) return NotFound();
 
-            if (leaveRequest.Status != ApprovalStatus.Pending)
+            if (leaveRequest.Status != ApprovalStatus.Pending && leaveRequest.Status != ApprovalStatus.Revision)
             {
-                TempData["ErrorMessage"] = "Sadece beklemede olan izin talepleri reddedilebilir.";
+                TempData["ErrorMessage"] = "Sadece beklemede veya revize durumundaki talepler reddedilebilir.";
                 return RedirectToAction(nameof(Details), new { id });
             }
 
@@ -347,10 +425,13 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        // GET: LeaveRequests/Delete - İzin Talebini Sil
+        // GET: LeaveRequests/Delete - İzin Talebini Sil (Sadece Admin ve kendi talebi)
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null) return NotFound();
+
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
 
             var leaveRequest = await _context.LeaveRequests
                 .Include(lr => lr.Intern)
@@ -358,6 +439,22 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 .FirstOrDefaultAsync(m => m.Id == id);
 
             if (leaveRequest == null) return NotFound();
+
+            // Sadece Admin veya kendi talebi olan stajyer silebilir (ve sadece Pending durumunda)
+            if (!userRoles.Contains("Admin"))
+            {
+                if (!userRoles.Contains("Intern") || leaveRequest.Intern.Email != currentUser.Email)
+                {
+                    TempData["ErrorMessage"] = "Bu izin talebini silme yetkiniz bulunmamaktadır.";
+                    return RedirectToAction(nameof(Index));
+                }
+
+                if (leaveRequest.Status != ApprovalStatus.Pending)
+                {
+                    TempData["ErrorMessage"] = "Sadece beklemede olan izin talepleri silinebilir.";
+                    return RedirectToAction(nameof(Details), new { id });
+                }
+            }
 
             return View(leaveRequest);
         }
@@ -369,28 +466,50 @@ namespace MedasStajyerYonetimSistemi.Controllers
         {
             try
             {
-                var leaveRequest = await _context.LeaveRequests.FindAsync(id);
-                if (leaveRequest != null)
-                {
-                    _context.LeaveRequests.Remove(leaveRequest);
-                    await _context.SaveChangesAsync();
+                var currentUser = await _userManager.GetUserAsync(User);
+                var userRoles = await _userManager.GetRolesAsync(currentUser);
 
-                    TempData["SuccessMessage"] = "İzin talebi başarıyla silindi.";
-                }
-                else
+                var leaveRequest = await _context.LeaveRequests
+                    .Include(lr => lr.Intern)
+                    .FirstOrDefaultAsync(lr => lr.Id == id);
+
+                if (leaveRequest == null)
                 {
                     TempData["ErrorMessage"] = "Silinecek izin talebi bulunamadı.";
+                    return RedirectToAction(nameof(Index));
                 }
+
+                // Yetki kontrolü
+                if (!userRoles.Contains("Admin"))
+                {
+                    if (!userRoles.Contains("Intern") || leaveRequest.Intern.Email != currentUser.Email)
+                    {
+                        TempData["ErrorMessage"] = "Bu izin talebini silme yetkiniz bulunmamaktadır.";
+                        return RedirectToAction(nameof(Index));
+                    }
+
+                    if (leaveRequest.Status != ApprovalStatus.Pending)
+                    {
+                        TempData["ErrorMessage"] = "Sadece beklemede olan izin talepleri silinebilir.";
+                        return RedirectToAction(nameof(Index));
+                    }
+                }
+
+                _context.LeaveRequests.Remove(leaveRequest);
+                await _context.SaveChangesAsync();
+
+                TempData["SuccessMessage"] = "İzin talebi başarıyla silindi.";
+                return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
-                TempData["ErrorMessage"] = $"Silme işlemi sırasında hata oluştu: {ex.Message}";
+                TempData["ErrorMessage"] = "Silme işlemi sırasında hata oluştu.";
+                return RedirectToAction(nameof(Index));
             }
-
-            return RedirectToAction(nameof(Index));
         }
 
-        // Excel Export
+        // Excel Export (Sadece HR ve Admin)
+        [Authorize(Roles = "Admin,HR")]
         public async Task<IActionResult> ExportToExcel(string status = "All", DateTime? startDate = null, DateTime? endDate = null)
         {
             var query = _context.LeaveRequests
@@ -419,37 +538,22 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 .ToListAsync();
 
             // Excel dosyası oluştur
-            using var workbook = new ClosedXML.Excel.XLWorkbook();
+            using var workbook = new XLWorkbook();
             var worksheet = workbook.Worksheets.Add("İzin Talepleri");
 
             // Başlık satırı
             var headers = new[]
             {
-        "Sıra No",
-        "Stajyer Adı",
-        "Departman",
-        "İzin Türü",
-        "Çıkış Tarihi",
-        "Çıkış Saati",
-        "Dönüş Tarihi",
-        "Dönüş Saati",
-        "Toplam Gün",
-        "Toplam Saat",
-        "İzin Sebebi",
-        "Durum",
-        "Onaylayan",
-        "Onay Tarihi",
-        "Onay Notu",
-        "Talep Tarihi",
-        "Manuel Form",
-        "Puantaja Yansıt"
-    };
+                "Sıra No", "Stajyer Adı", "Departman", "İzin Türü", "Çıkış Tarihi", "Çıkış Saati",
+                "Dönüş Tarihi", "Dönüş Saati", "Toplam Gün", "Toplam Saat", "İzin Sebebi",
+                "Durum", "Onaylayan", "Onay Tarihi", "Onay Notu", "Talep Tarihi", "Manuel Form", "Puantaja Yansıt"
+            };
 
             for (int i = 0; i < headers.Length; i++)
             {
                 worksheet.Cell(1, i + 1).Value = headers[i];
                 worksheet.Cell(1, i + 1).Style.Font.Bold = true;
-                worksheet.Cell(1, i + 1).Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
+                worksheet.Cell(1, i + 1).Style.Fill.BackgroundColor = XLColor.LightGray;
             }
 
             // Veri satırları
@@ -484,7 +588,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             // Tablo formatı uygula
             var dataRange = worksheet.Range(1, 1, row - 1, headers.Length);
             var table = dataRange.CreateTable();
-            table.Theme = ClosedXML.Excel.XLTableTheme.TableStyleMedium2;
+            table.Theme = XLTableTheme.TableStyleMedium2;
 
             // Dosya adı oluştur
             var fileName = $"Izin_Talepleri_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
@@ -501,90 +605,49 @@ namespace MedasStajyerYonetimSistemi.Controllers
             );
         }
 
-
-
         // Helper Methods
-
-        // HELPER: İzni Puantaja Yansıt
-        private async Task ReflectLeaveToTimesheet(LeaveRequest leaveRequest)
+        private bool LeaveRequestExists(int id)
         {
-            try
-            {
-                // İzin tarihlerini al
-                var leaveStartDate = leaveRequest.StartDateTime.Date;
-                var leaveEndDate = leaveRequest.EndDateTime.Date;
-
-                // İzin kapsamındaki tarihlerde puantaj detaylarını bul
-                var affectedTimesheets = await _context.Timesheets
-                    .Include(t => t.TimesheetDetails)
-                    .Where(t => t.InternId == leaveRequest.InternId)
-                    .Where(t => t.PeriodDate.Year >= leaveStartDate.Year &&
-                               t.PeriodDate.Month >= leaveStartDate.Month)
-                    .ToListAsync();
-
-                foreach (var timesheet in affectedTimesheets)
-                {
-                    bool timesheetUpdated = false;
-                    string leaveDescription = GetLeaveTypeDescription(leaveRequest.LeaveType);
-
-                    // Bu puantajdaki izin kapsamına giren günleri bul
-                    var affectedDetails = timesheet.TimesheetDetails
-                        .Where(d => d.WorkDate >= leaveStartDate && d.WorkDate <= leaveEndDate)
-                        .ToList();
-
-                    foreach (var detail in affectedDetails)
-                    {
-                        // İzin saatini hesapla (o gün için)
-                        var leaveHoursForDay = CalculateLeaveHoursForDay(leaveRequest, detail.WorkDate);
-
-                        if (leaveHoursForDay > 0)
-                        {
-                            // İzin bilgilerini ekle/güncelle
-                            detail.LeaveInfo = string.IsNullOrEmpty(detail.LeaveInfo)
-                                ? leaveDescription
-                                : $"{detail.LeaveInfo}, {leaveDescription}";
-
-                            detail.LeaveHours += leaveHoursForDay;
-
-                            // Eğer tam gün izinse devamsızlık olarak işaretle
-                            if (leaveHoursForDay >= 8)
-                            {
-                                detail.IsPresent = false;
-                                detail.StartTime = null;
-                                detail.EndTime = null;
-                                detail.HasMealAllowance = false;
-                            }
-
-                            timesheetUpdated = true;
-                        }
-                    }
-
-                    if (timesheetUpdated)
-                    {
-                        // Puantaj onaylanmışsa "Revision" durumuna çevir
-                        if (timesheet.Status == ApprovalStatus.Approved)
-                        {
-                            timesheet.Status = ApprovalStatus.Revision;
-                            timesheet.ApprovalNote = $"İzin onayı nedeniyle güncellendi: {leaveDescription}";
-                            timesheet.UpdatedDate = DateTime.Now;
-                        }
-
-                        // Puantaj toplamlarını yeniden hesapla
-                        await UpdateTimesheetTotals(timesheet.Id);
-
-                        _context.Update(timesheet);
-                    }
-                }
-
-                await _context.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error reflecting leave to timesheet: {ex.Message}");
-            }
+            return _context.LeaveRequests.Any(e => e.Id == id);
         }
 
-        // HELPER: İzin türü açıklaması
+        private async Task PopulateDropDowns(int? selectedInternId = null)
+        {
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            // Eğer stajyer ise sadece kendi kaydını göster
+            if (userRoles.Contains("Intern"))
+            {
+                var internRecord = await _context.Interns
+                    .Where(i => i.Email == currentUser.Email && i.IsActive)
+                    .ToListAsync();
+
+                ViewBag.InternId = new SelectList(internRecord, "Id", "FullName", selectedInternId);
+            }
+            else
+            {
+                // Diğer roller tüm aktif stajyerleri görebilir
+                var interns = await _context.Interns
+                    .Where(i => i.IsActive)
+                    .OrderBy(i => i.FullName)
+                    .ToListAsync();
+
+                ViewBag.InternId = new SelectList(interns, "Id", "FullName", selectedInternId);
+            }
+
+            ViewBag.LeaveTypes = new SelectList(
+                Enum.GetValues(typeof(LeaveType))
+                    .Cast<LeaveType>()
+                    .Select(e => new
+                    {
+                        Value = (int)e,
+                        Text = e.GetDisplayName()
+                    }),
+                "Value",
+                "Text");
+        }
+
         private string GetLeaveTypeDescription(LeaveType leaveType)
         {
             return leaveType switch
@@ -598,56 +661,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
             };
         }
 
-        // HELPER: O gün için izin saati hesapla
-        private decimal CalculateLeaveHoursForDay(LeaveRequest leaveRequest, DateTime workDate)
-        {
-            var leaveStart = leaveRequest.StartDateTime;
-            var leaveEnd = leaveRequest.EndDateTime;
-            var workDay = workDate.Date;
-
-            // İzin bu günü kapsıyor mu?
-            if (workDay < leaveStart.Date || workDay > leaveEnd.Date)
-                return 0;
-
-            // O gün için çalışma saatleri (08:30 - 17:30)
-            var workDayStart = workDay.AddHours(8).AddMinutes(30);
-            var workDayEnd = workDay.AddHours(17).AddMinutes(30);
-
-            // İzin saatlerini o günün çalışma saatleri ile kesiştir
-            var effectiveLeaveStart = leaveStart > workDayStart ? leaveStart : workDayStart;
-            var effectiveLeaveEnd = leaveEnd < workDayEnd ? leaveEnd : workDayEnd;
-
-            // Geçerli aralık var mı?
-            if (effectiveLeaveStart >= effectiveLeaveEnd)
-                return 0;
-
-            var leaveHours = (decimal)(effectiveLeaveEnd - effectiveLeaveStart).TotalHours;
-
-            // Maksimum 8 saat
-            return Math.Min(Math.Round(leaveHours, 1), 8);
-        }
-
-        // HELPER: Puantaj toplamlarını güncelle (TimesheetsController'dan kopyala)
-        private async Task UpdateTimesheetTotals(int timesheetId)
-        {
-            var timesheet = await _context.Timesheets
-                .Include(t => t.TimesheetDetails)
-                .FirstOrDefaultAsync(t => t.Id == timesheetId);
-
-            if (timesheet != null)
-            {
-                timesheet.TotalWorkDays = timesheet.TimesheetDetails.Count(d => d.IsPresent);
-                timesheet.TotalLeaveDays = timesheet.TimesheetDetails
-                    .Where(d => d.LeaveHours > 0)
-                    .Sum(d => (int)Math.Ceiling(d.LeaveHours / 8));
-                timesheet.TotalTrainingHours = timesheet.TimesheetDetails.Sum(d => d.TrainingHours);
-                timesheet.UpdatedDate = DateTime.Now;
-
-                _context.Update(timesheet);
-            }
-        }
-
-        // HELPER: Onay durumu açıklaması
         private string GetApprovalStatusDescription(ApprovalStatus status)
         {
             return status switch
@@ -659,32 +672,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 ApprovalStatus.Cancelled => "İptal",
                 _ => "Bilinmeyen"
             };
-        }
-
-        private bool LeaveRequestExists(int id)
-        {
-            return _context.LeaveRequests.Any(e => e.Id == id);
-        }
-
-        private async Task PopulateDropDowns(int? selectedInternId = null)
-        {
-            var interns = await _context.Interns
-                .Where(i => i.IsActive)
-                .OrderBy(i => i.FullName)
-                .ToListAsync();
-
-            ViewBag.InternId = new SelectList(interns, "Id", "FullName", selectedInternId);
-
-            ViewBag.LeaveTypes = new SelectList(
-                Enum.GetValues(typeof(LeaveType))
-                    .Cast<LeaveType>()
-                    .Select(e => new
-                    {
-                        Value = (int)e,
-                        Text = e.GetDisplayName()
-                    }),
-                "Value",
-                "Text");
         }
     }
 }

@@ -10,25 +10,31 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="card-title mb-0">Stajyer Listesi</h3>
-                    <div>
-                       @*  @if (User.IsInRole("Admin") || User.IsInRole("HR"))
+                    <div class="col-md-6 text-end">
+                        @* Sadece HR ve Admin yeni kayıt oluşturabilir *@
+                        @if (User.IsInRole("Admin") || User.IsInRole("HR"))
                         {
-                            <a asp-action="Create" class="btn btn-primary">
-                                <i class="fas fa-plus"></i> Yeni Kayıt
+                            <a asp-action="Create" class="btn btn-success">
+                                <i class="fas fa-plus me-1"></i>Yeni Kayıt
                             </a>
-                        } *@
-                        <a asp-action="Create" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> Yeni Kayıt
-                        </a>
-                        @* @if (User.IsInRole("Admin") || User.IsInRole("HR") || User.IsInRole("Supervisor"))
+                        }
+
+                        @* Sadece HR ve Admin export yapabilir *@
+                        @if (User.IsInRole("Admin") || User.IsInRole("HR"))
                         {
-                            <a asp-action="ExportToExcel" class="btn btn-success">
-                                <i class="fas fa-download"></i> Dışa Aktar
-                            </a>
-                        } *@
-                        <a asp-action="ExportToExcel" class="btn btn-success">
-                            <i class="fas fa-download"></i> Dışa Aktar
-                        </a>
+                            <div class="btn-group ms-2">
+                                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="fas fa-file-export me-1"></i>Dışa Aktar
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        <a class="dropdown-item" asp-action="ExportToExcel">
+                                            <i class="fas fa-file-excel me-1"></i>Excel
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -66,91 +72,105 @@
                     </form>
 
                     <!-- Stajyer Tablosu -->
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Adı-Soyadı</th>
-                                    <th>Şirketi</th>
-                                    <th>Okulu</th>
-                                    <th>Okul Bölümü</th>
-                                    <th>Sorumlu Kişi</th>
-                                    <th>Departman/İşletme</th>
-                                    <th>Staj Günleri</th>
-                                    <th>Detay</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in Model)
-                                {
+                    @if (Model.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-primary">
                                     <tr>
-                                        <td>
-                                            <strong>@Html.DisplayFor(modelItem => item.FullName)</strong>
-                                            @if (item.IsFromCloudoffix)
-                                            {
-                                                <span class="badge bg-info ms-1">Cloudoffix</span>
-                                            }
-                                        </td>
-                                        <td>@Html.DisplayFor(modelItem => item.Company)</td>
-                                        <td>@Html.DisplayFor(modelItem => item.School)</td>
-                                        <td>@Html.DisplayFor(modelItem => item.Major)</td>
-                                        <td>@Html.DisplayFor(modelItem => item.ResponsiblePerson)</td>
-                                        <td>
-                                            <small>@Html.DisplayFor(modelItem => item.Department)</small>
-                                        </td>
-                                        <td>
-                                            <small>@Html.DisplayFor(modelItem => item.WorkDays)</small>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group" role="group">
-                                                <a asp-action="Details" asp-route-id="@item.Id"
-                                                   class="btn btn-sm btn-outline-primary" title="Detay">
-                                                    <i class="fas fa-eye"></i>
-                                                </a>
-                                               @*  @if (User.IsInRole("Admin") || User.IsInRole("HR"))
-                                                {
-                                                    <a asp-action="Edit" asp-route-id="@item.Id"
-                                                       class="btn btn-sm btn-outline-warning" title="Düzenle">
-                                                        <i class="fas fa-edit"></i>
-                                                    </a>
-                                                    <a asp-action="Delete" asp-route-id="@item.Id"
-                                                       class="btn btn-sm btn-outline-danger" title="Sil">
-                                                        <i class="fas fa-trash"></i>
-                                                    </a>
-                                                } *@
-                                                <a asp-action="Edit" asp-route-id="@item.Id"
-                                                   class="btn btn-sm btn-outline-warning" title="Düzenle">
-                                                    <i class="fas fa-edit"></i>
-                                                </a>
-                                                <a asp-action="Delete" asp-route-id="@item.Id"
-                                                   class="btn btn-sm btn-outline-danger" title="Sil">
-                                                    <i class="fas fa-trash"></i>
-                                                </a>
-                                            </div>
-                                        </td>
+                                        <th>Adı-Soyadı</th>
+                                        <th>Şirketi</th>
+                                        <th>Okulu</th>
+                                        <th>Okul Bölümü</th>
+                                        <th>Sorumlu Kişi</th>
+                                        <th>Departman/İşletme</th>
+                                        <th>Staj Günleri</th>
+                                        <th>Detay</th>
+                                        @* Sadece HR ve Admin için düzenleme/silme butonları *@
+                                        @if (User.IsInRole("Admin") || User.IsInRole("HR"))
+                                        {
+                                            <th>İşlemler</th>
+                                        }
                                     </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in Model)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@item.FullName</strong>
+                                                @if (item.IsFromCloudoffix)
+                                                {
+                                                    <span class="badge bg-info ms-1" title="Cloudoffix'ten alınan kayıt">
+                                                        <i class="fas fa-cloud"></i>
+                                                    </span>
+                                                }
+                                            </td>
+                                            <td>@item.Company</td>
+                                            <td>@item.School</td>
+                                            <td>@item.Major</td>
+                                            <td>@item.ResponsiblePerson</td>
+                                            <td>@item.Department</td>
+                                            <td>
+                                                <small class="text-muted">@item.WorkDays</small>
+                                            </td>
+                                            <td>
+                                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-eye me-1"></i>Detay
+                                                </a>
+                                            </td>
+                                            @* Sadece HR ve Admin için düzenleme/silme *@
+                                            @if (User.IsInRole("Admin") || User.IsInRole("HR"))
+                                            {
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-outline-warning" title="Düzenle">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        @if (User.IsInRole("Admin"))
+                                                        {
+                                                            <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-outline-danger" title="Sil">
+                                                                <i class="fas fa-trash"></i>
+                                                            </a>
+                                                        }
+                                                    </div>
+                                                </td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
 
                     <!-- Sayfalama -->
                     @if (ViewBag.TotalPages > 1)
                     {
-                        <nav aria-label="Sayfalama">
+                        <nav class="mt-3">
                             <ul class="pagination justify-content-center">
                                 @for (int i = 1; i <= ViewBag.TotalPages; i++)
                                 {
                                     <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                        <a class="page-link"
-                                           asp-action="Index"
-                                           asp-route-page="@i"
-                                           asp-route-sortBy="@ViewBag.CurrentSort"
-                                           asp-route-searchTerm="@ViewBag.CurrentSearch">@i</a>
+                                        <a class="page-link" href="?page=@i&sortBy=@ViewBag.CurrentSort&searchTerm=@ViewBag.CurrentSearch">@i</a>
                                     </li>
                                 }
                             </ul>
                         </nav>
+                    }
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">Kayıt bulunamadı</h5>
+                            @if (User.IsInRole("Intern"))
+                            {
+                                <p class="text-muted">Stajyer kaydınız sisteme henüz eklenmemiş olabilir.</p>
+                            }
+                            else if (User.IsInRole("Admin") || User.IsInRole("HR"))
+                            {
+                                <p class="text-muted">Yeni stajyer kaydı oluşturmak için yukarıdaki "Yeni Kayıt" butonunu kullanın.</p>
+                            }
+                        </div>
                     }
                 </div>
             </div>

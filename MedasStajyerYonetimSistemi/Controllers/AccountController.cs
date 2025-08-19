@@ -1,4 +1,5 @@
 ﻿using MedasStajyerYonetimSistemi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
@@ -14,6 +15,14 @@ namespace MedasStajyerYonetimSistemi.Controllers
         {
             _signInManager = signInManager;
             _userManager = userManager;
+        }
+
+        // GET: Account/AccessDenied - Erişim Reddedildi Sayfası
+        [AllowAnonymous]
+        public IActionResult AccessDenied(string? returnUrl = null)
+        {
+            ViewData["ReturnUrl"] = returnUrl;
+            return View();
         }
 
         // GET: Account/Login - Giriş Sayfası

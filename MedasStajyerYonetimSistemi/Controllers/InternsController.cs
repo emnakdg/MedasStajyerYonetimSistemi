@@ -1,6 +1,7 @@
 ﻿using ClosedXML.Excel;
 using MedasStajyerYonetimSistemi.Data;
 using MedasStajyerYonetimSistemi.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedasStajyerYonetimSistemi.Controllers
 {
+    [Authorize] // Temel authorization - giriş yapmış olmalı
     public class InternsController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -19,12 +21,22 @@ namespace MedasStajyerYonetimSistemi.Controllers
             _userManager = userManager;
         }
 
-        // GET: Interns - Stajyer Listesi
+        // GET: Interns - Stajyer Listesi 
+        // Stajyerler sadece kendi kaydını görebilir, diğerleri herkesi görebilir
         public async Task<IActionResult> Index(string sortBy = "FullName", string searchTerm = "", int page = 1)
         {
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
             var query = _context.Interns
                 .Include(i => i.ResponsibleUser)
                 .Where(i => i.IsActive);
+
+            // Eğer stajyer ise sadece kendi kaydını görsün
+            if (userRoles.Contains("Intern"))
+            {
+                query = query.Where(i => i.Email == currentUser.Email);
+            }
 
             // Arama filtresi
             if (!string.IsNullOrEmpty(searchTerm))
@@ -60,16 +72,23 @@ namespace MedasStajyerYonetimSistemi.Controllers
             ViewBag.TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             ViewBag.TotalCount = totalCount;
 
+            // Stajyer ise farklı bir view göster (opsiyonel)
+            if (userRoles.Contains("Intern"))
+            {
+                ViewBag.IsInternView = true;
+            }
+
             return View(interns);
         }
 
-        // GET: Interns/Details - Stajyer Detayları
+        // GET: Interns/Details - Stajyer Detayları 
+        // Stajyerler sadece kendi detaylarını görebilir
         public async Task<IActionResult> Details(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
+
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
 
             var intern = await _context.Interns
                 .Include(i => i.ResponsibleUser)
@@ -77,33 +96,39 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 .Include(i => i.Timesheets)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (intern == null)
+            if (intern == null) return NotFound();
+
+            // Eğer stajyer ise sadece kendi detaylarını görebilir
+            if (userRoles.Contains("Intern") && intern.Email != currentUser.Email)
             {
-                return NotFound();
+                TempData["ErrorMessage"] = "Bu bilgilere erişim yetkiniz bulunmamaktadır.";
+                return RedirectToAction(nameof(Index));
             }
 
             return View(intern);
         }
 
-        // GET: Interns/Create - Yeni Stajyer Formu
-        //[Authorize(Roles = "Admin,HR")]
+        // GET: Interns/Create - Yeni Stajyer (Sadece HR ve Admin)
+        [Authorize(Roles = "Admin,HR")]
         public async Task<IActionResult> Create()
         {
             await PopulateDropDowns();
             return View();
         }
 
-        // POST: Interns/Create - Yeni Stajyer Kaydet
+        // POST: Interns/Create - Yeni Stajyer Kaydet (Sadece HR ve Admin)
         [HttpPost]
         [ValidateAntiForgeryToken]
-        //[Authorize(Roles = "Admin,HR")]
+        [Authorize(Roles = "Admin,HR")]
         public async Task<IActionResult> Create([Bind("FullName,Address,PhoneNumber,Email,Company,Department,ResponsiblePerson,ResponsiblePersonId,School,Major,WorkDays,EmergencyContactName,EmergencyContactPhone,SchoolSupervisorName,SchoolSupervisorPhone,InternshipType,Workplace,CompanyEmployeeNumber,EmployeeNumber,IsFromCloudoffix,InternshipStartDate,InternshipEndDate")] Intern intern)
         {
+            // Navigation property hatalarını temizle
+            ModelState.Remove("ResponsibleUser");
+            ModelState.Remove("LeaveRequests");
+            ModelState.Remove("Timesheets");
+
             if (ModelState.IsValid)
             {
-                intern.CreatedDate = DateTime.Now;
-                intern.IsActive = true;
-
                 // Email kontrolü
                 var existingIntern = await _context.Interns
                     .FirstOrDefaultAsync(i => i.Email == intern.Email && i.IsActive);
@@ -115,19 +140,8 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     return View(intern);
                 }
 
-                // Sicil no kontrolü
-                if (!string.IsNullOrEmpty(intern.EmployeeNumber))
-                {
-                    var existingEmployeeNumber = await _context.Interns
-                        .FirstOrDefaultAsync(i => i.EmployeeNumber == intern.EmployeeNumber && i.IsActive);
-
-                    if (existingEmployeeNumber != null)
-                    {
-                        ModelState.AddModelError("EmployeeNumber", "Bu sicil numarası zaten kullanılıyor.");
-                        await PopulateDropDowns(intern.ResponsiblePersonId);
-                        return View(intern);
-                    }
-                }
+                intern.CreatedDate = DateTime.Now;
+                intern.IsActive = true;
 
                 _context.Add(intern);
                 await _context.SaveChangesAsync();
@@ -140,35 +154,30 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(intern);
         }
 
-        // GET: Interns/Edit - Stajyer Düzenle
-        //[Authorize(Roles = "Admin,HR")]
+        // GET: Interns/Edit - Stajyer Düzenle (Sadece HR ve Admin)
+        [Authorize(Roles = "Admin,HR")]
         public async Task<IActionResult> Edit(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             var intern = await _context.Interns.FindAsync(id);
-            if (intern == null)
-            {
-                return NotFound();
-            }
+            if (intern == null) return NotFound();
 
-            // await PopulateDropDowns(intern.ResponsiblePersonId); // Şimdilik yorum satırına alın
+            await PopulateDropDowns(intern.ResponsiblePersonId);
             return View(intern);
         }
 
-        // POST: Interns/Edit - Stajyer Güncelle
+        // POST: Interns/Edit - Stajyer Güncelle (Sadece HR ve Admin)
         [HttpPost]
         [ValidateAntiForgeryToken]
-        //[Authorize(Roles = "Admin,HR")]
+        [Authorize(Roles = "Admin,HR")]
         public async Task<IActionResult> Edit(int id, [Bind("Id,FullName,Address,PhoneNumber,Email,Company,Department,ResponsiblePerson,ResponsiblePersonId,School,Major,WorkDays,EmergencyContactName,EmergencyContactPhone,SchoolSupervisorName,SchoolSupervisorPhone,InternshipType,Workplace,CompanyEmployeeNumber,EmployeeNumber,IsFromCloudoffix,InternshipStartDate,InternshipEndDate,IsActive,CreatedDate")] Intern intern)
         {
-            if (id != intern.Id)
-            {
-                return NotFound();
-            }
+            if (id != intern.Id) return NotFound();
+
+            ModelState.Remove("ResponsibleUser");
+            ModelState.Remove("LeaveRequests");
+            ModelState.Remove("Timesheets");
 
             if (ModelState.IsValid)
             {
@@ -190,6 +199,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     await _context.SaveChangesAsync();
 
                     TempData["SuccessMessage"] = "Stajyer bilgileri başarıyla güncellendi.";
+                    return RedirectToAction(nameof(Index));
                 }
                 catch (DbUpdateConcurrencyException)
                 {
@@ -202,38 +212,31 @@ namespace MedasStajyerYonetimSistemi.Controllers
                         throw;
                     }
                 }
-                return RedirectToAction(nameof(Index));
             }
 
             await PopulateDropDowns(intern.ResponsiblePersonId);
             return View(intern);
         }
 
-        // GET: Interns/Delete/5 - Stajyer Sil (Soft Delete)
-        //[Authorize(Roles = "Admin,HR")]
+        // GET: Interns/Delete - Stajyer Sil (Sadece Admin)
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int? id)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id == null) return NotFound();
 
             var intern = await _context.Interns
                 .Include(i => i.ResponsibleUser)
                 .FirstOrDefaultAsync(m => m.Id == id);
 
-            if (intern == null)
-            {
-                return NotFound();
-            }
+            if (intern == null) return NotFound();
 
             return View(intern);
         }
 
-        // POST: Interns/Delete/5 - Stajyer Sil (Onay)
+        // POST: Interns/Delete - Stajyer Sil (Sadece Admin)
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
-        //[Authorize(Roles = "Admin,HR")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             try
@@ -253,151 +256,90 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 intern.IsActive = false;
                 intern.UpdatedDate = DateTime.Now;
 
-                // Model state'i temizle
-                ModelState.Clear();
-
                 _context.Update(intern);
                 await _context.SaveChangesAsync();
 
                 TempData["SuccessMessage"] = "Stajyer kaydı başarıyla silindi.";
                 return RedirectToAction(nameof(Index));
             }
-            catch (DbUpdateException dbEx)
-            {
-                // Veritabanı güncelleme hatası
-                TempData["ErrorMessage"] = $"Veritabanı hatası: {dbEx.InnerException?.Message ?? dbEx.Message}";
-                return RedirectToAction(nameof(Index));
-            }
             catch (Exception ex)
             {
-                // Genel hata
-                TempData["ErrorMessage"] = $"Silme işlemi sırasında hata oluştu: {ex.Message}";
+                TempData["ErrorMessage"] = "Silme işlemi sırasında hata oluştu.";
                 return RedirectToAction(nameof(Index));
             }
         }
 
-        // Excel Export - Stajyer Listesi Dışa Aktar
-        //[Authorize(Roles = "Admin,HR,Supervisor")]
-        public async Task<IActionResult> ExportToExcel()
+        // Excel Export (Sadece HR ve Admin)
+        [Authorize(Roles = "Admin,HR")]
+        public async Task<IActionResult> ExportToExcel(string? searchTerm = null)
         {
-            var interns = await _context.Interns
-                .Include(i => i.ResponsibleUser)
-                .Where(i => i.IsActive)
-                .OrderBy(i => i.FullName)
-                .ToListAsync();
+            var query = _context.Interns.Where(i => i.IsActive);
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                query = query.Where(i =>
+                    i.FullName.Contains(searchTerm) ||
+                    i.Company.Contains(searchTerm) ||
+                    i.Department.Contains(searchTerm) ||
+                    i.School.Contains(searchTerm));
+            }
+
+            var interns = await query.OrderBy(i => i.FullName).ToListAsync();
 
             using var workbook = new XLWorkbook();
-            var worksheet = workbook.Worksheets.Add("Stajyer Listesi");
+            var worksheet = workbook.Worksheets.Add("Stajyerler");
 
-            // Başlık satırı
-            worksheet.Cell(1, 1).Value = "Adı Soyadı";
-            worksheet.Cell(1, 2).Value = "Şirket";
-            worksheet.Cell(1, 3).Value = "Departman";
-            worksheet.Cell(1, 4).Value = "Email";
-            worksheet.Cell(1, 5).Value = "Telefon";
-            worksheet.Cell(1, 6).Value = "Okul";
-            worksheet.Cell(1, 7).Value = "Bölüm";
-            worksheet.Cell(1, 8).Value = "Sorumlu Kişi";
-            worksheet.Cell(1, 9).Value = "Staj Türü";
-            worksheet.Cell(1, 10).Value = "Çalışma Günleri";
-            worksheet.Cell(1, 11).Value = "İşyeri";
-            worksheet.Cell(1, 12).Value = "Staj Başlangıç";
-            worksheet.Cell(1, 13).Value = "Staj Bitiş";
-            worksheet.Cell(1, 14).Value = "Sicil No";
-
-            // Başlık satırını kalın yap
-            var headerRange = worksheet.Range(1, 1, 1, 14);
-            headerRange.Style.Font.Bold = true;
-            headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
-            headerRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
-
-            // Veri satırları
-            for (int i = 0; i < interns.Count; i++)
+            // Headers
+            var headers = new[]
             {
-                var intern = interns[i];
-                var row = i + 2; // Başlık satırından sonra
+                "Ad-Soyad", "Şirket", "Departman", "Okul", "Bölüm",
+                "Sorumlu Kişi", "Telefon", "E-posta", "Staj Türü",
+                "Başlangıç Tarihi", "Bitiş Tarihi", "Aktif"
+            };
 
+            for (int i = 0; i < headers.Length; i++)
+            {
+                worksheet.Cell(1, i + 1).Value = headers[i];
+                worksheet.Cell(1, i + 1).Style.Font.Bold = true;
+                worksheet.Cell(1, i + 1).Style.Fill.BackgroundColor = XLColor.LightGray;
+            }
+
+            // Data
+            int row = 2;
+            foreach (var intern in interns)
+            {
                 worksheet.Cell(row, 1).Value = intern.FullName;
                 worksheet.Cell(row, 2).Value = intern.Company;
                 worksheet.Cell(row, 3).Value = intern.Department;
-                worksheet.Cell(row, 4).Value = intern.Email;
-                worksheet.Cell(row, 5).Value = intern.PhoneNumber;
-                worksheet.Cell(row, 6).Value = intern.School;
-                worksheet.Cell(row, 7).Value = intern.Major;
-                worksheet.Cell(row, 8).Value = intern.ResponsiblePerson;
-                worksheet.Cell(row, 9).Value = GetInternshipTypeDisplayName(intern.InternshipType);
-                worksheet.Cell(row, 10).Value = intern.WorkDays;
-                worksheet.Cell(row, 11).Value = intern.Workplace;
-                worksheet.Cell(row, 12).Value = intern.InternshipStartDate?.ToString("dd.MM.yyyy") ?? "";
-                worksheet.Cell(row, 13).Value = intern.InternshipEndDate?.ToString("dd.MM.yyyy") ?? "";
-                worksheet.Cell(row, 14).Value = intern.EmployeeNumber ?? "";
+                worksheet.Cell(row, 4).Value = intern.School;
+                worksheet.Cell(row, 5).Value = intern.Major;
+                worksheet.Cell(row, 6).Value = intern.ResponsiblePerson;
+                worksheet.Cell(row, 7).Value = intern.PhoneNumber;
+                worksheet.Cell(row, 8).Value = intern.Email;
+                worksheet.Cell(row, 9).Value = intern.InternshipType.ToString();
+                worksheet.Cell(row, 10).Value = intern.InternshipStartDate?.ToString("dd.MM.yyyy") ?? "";
+                worksheet.Cell(row, 11).Value = intern.InternshipEndDate?.ToString("dd.MM.yyyy") ?? "";
+                worksheet.Cell(row, 12).Value = intern.IsActive ? "Evet" : "Hayır";
+                row++;
             }
 
-            // Sütun genişliklerini ayarla
             worksheet.Columns().AdjustToContents();
 
-            // Tablo stili ekle
-            var dataRange = worksheet.Range(1, 1, interns.Count + 1, 14);
-            dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
-            dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+            var fileName = $"Stajyerler_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
 
-            // Excel dosyasını memory stream'e kaydet
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
             stream.Position = 0;
 
-            var fileName = $"Stajyer_Listesi_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
-            return File(stream.ToArray(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                fileName);
+            return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
 
-
-        // Helper methodları
-
-
-        // Staj Türü için Display Name alma
-        private string GetInternshipTypeDisplayName(InternshipType internshipType)
-        {
-            return internshipType switch
-            {
-                InternshipType.SummerInternship => "Yaz Stajı",
-                InternshipType.Talentern => "Talentern Staj",
-                InternshipType.KozaProject => "Koza Projesi",
-                InternshipType.HighSchoolInternship => "Lise Stajı",
-                _ => internshipType.ToString()
-            };
-        }
-
-        // API: Stajyer Arama (AutoComplete için)
-        [HttpGet]
-        public async Task<JsonResult> SearchInterns(string term)
-        {
-            var interns = await _context.Interns
-                .Where(i => i.IsActive && i.FullName.Contains(term))
-                .Select(i => new
-                {
-                    id = i.Id,
-                    label = i.FullName,
-                    department = i.Department,
-                    responsiblePerson = i.ResponsiblePerson
-                })
-                .Take(10)
-                .ToListAsync();
-
-            return Json(interns);
-        }
-
-
-        // Private Helper Methodları
-
-        // Stajyer ID kontrolü
+        // Helper methods
         private bool InternExists(int id)
         {
             return _context.Interns.Any(e => e.Id == id);
         }
 
-        // DropDown'ları doldurmak için kullanılan metod
         private async Task PopulateDropDowns(string? selectedResponsiblePersonId = null)
         {
             // Sorumlu kişiler (HR ve Supervisor rollerindeki kullanıcılar)
@@ -445,7 +387,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
     }
 }
 
-// Görünen Ad için Enum Extensions
+// Görünen Ad için Enum Extensions (eğer yoksa)
 public static class EnumExtensions
 {
     public static string GetDisplayName(this Enum enumValue)
