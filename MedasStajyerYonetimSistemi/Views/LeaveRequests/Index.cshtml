@@ -11,6 +11,8 @@
     bool isIntern = userRoles.Contains("Intern");
 }
 
+@Html.AntiForgeryToken()
+
 <div class="row">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -250,6 +252,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="rejectForm" method="post">
+                    @Html.AntiForgeryToken()
                     <div class="modal-body">
                         <input type="hidden" id="rejectLeaveId" name="id" />
                         <div class="mb-3">
@@ -276,6 +279,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form id="revisionForm" method="post">
+                    @Html.AntiForgeryToken()
                     <div class="modal-body">
                         <input type="hidden" id="revisionLeaveId" name="id" />
                         <div class="mb-3">
@@ -295,6 +299,8 @@
 }
 
 @section Scripts {
+    
+
     <!-- SADECE YETKİLİLER İÇİN JAVASCRIPT FONKSİYONLARI -->
     @if (canApprove)
     {
@@ -311,11 +317,15 @@
                     idInput.value = id;
                     form.appendChild(idInput);
 
-                    var tokenInput = document.createElement('input');
-                    tokenInput.type = 'hidden';
-                    tokenInput.name = '__RequestVerificationToken';
-                    tokenInput.value = '@Html.AntiForgeryToken().ToString().Replace("<input name=\"__RequestVerificationToken\" type=\"hidden\" value=\"", "").Replace("\" />", "")';
-                    form.appendChild(tokenInput);
+                    // Anti-forgery token'ı doğru şekilde al
+                    var token = document.querySelector('input[name="__RequestVerificationToken"]');
+                    if (token) {
+                        var tokenInput = document.createElement('input');
+                        tokenInput.type = 'hidden';
+                        tokenInput.name = '__RequestVerificationToken';
+                        tokenInput.value = token.value;
+                        form.appendChild(tokenInput);
+                    }
 
                     document.body.appendChild(form);
                     form.submit();
@@ -323,16 +333,49 @@
             }
 
             function showRejectModal(id) {
+                // Modal açılmadan önce formu temizle
+                document.getElementById('rejectNote').value = '';
                 document.getElementById('rejectLeaveId').value = id;
                 document.getElementById('rejectForm').action = '@Url.Action("Reject", "LeaveRequests")';
                 new bootstrap.Modal(document.getElementById('rejectModal')).show();
             }
 
             function showRevisionModal(id) {
+                // Modal açılmadan önce formu temizle
+                document.getElementById('revisionNote').value = '';
                 document.getElementById('revisionLeaveId').value = id;
                 document.getElementById('revisionForm').action = '@Url.Action("RequestRevision", "LeaveRequests")';
                 new bootstrap.Modal(document.getElementById('revisionModal')).show();
             }
+
+            // Form submission validation
+            document.addEventListener('DOMContentLoaded', function() {
+                // Reject form validation
+                const rejectForm = document.getElementById('rejectForm');
+                if (rejectForm) {
+                    rejectForm.addEventListener('submit', function(e) {
+                        const rejectNote = document.getElementById('rejectNote').value.trim();
+                        if (!rejectNote) {
+                            e.preventDefault();
+                            alert('Lütfen red sebebini giriniz.');
+                            return false;
+                        }
+                    });
+                }
+
+                // Revision form validation
+                const revisionForm = document.getElementById('revisionForm');
+                if (revisionForm) {
+                    revisionForm.addEventListener('submit', function(e) {
+                        const revisionNote = document.getElementById('revisionNote').value.trim();
+                        if (!revisionNote) {
+                            e.preventDefault();
+                            alert('Lütfen revizyon notunu giriniz.');
+                            return false;
+                        }
+                    });
+                }
+            });
         </script>
     }
 }

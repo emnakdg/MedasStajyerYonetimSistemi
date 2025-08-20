@@ -141,33 +141,46 @@ namespace MedasStajyerYonetimSistemi.Controllers
     // RegisterViewModel - Kayıt Formu Modeli
     public class RegisterViewModel
     {
+        [Required(ErrorMessage = "Ad Soyad gereklidir")]
+        [StringLength(100, ErrorMessage = "Ad Soyad en fazla 100 karakter olabilir")]
+        [Display(Name = "Ad Soyad")]
+        public string FullName { get; set; } = "";
+
         [Required(ErrorMessage = "E-posta adresi gereklidir")]
         [EmailAddress(ErrorMessage = "Geçerli bir e-posta adresi giriniz")]
         [Display(Name = "E-posta")]
         public string Email { get; set; } = "";
 
         [Required(ErrorMessage = "Şifre gereklidir")]
-        [StringLength(100, ErrorMessage = "Şifre en az {2} karakter olmalıdır", MinimumLength = 4)]
+        [StringLength(100, ErrorMessage = "Şifre en az {2} ve en fazla {1} karakter olmalıdır.", MinimumLength = 6)]
         [DataType(DataType.Password)]
         [Display(Name = "Şifre")]
         public string Password { get; set; } = "";
 
         [DataType(DataType.Password)]
         [Display(Name = "Şifre Tekrar")]
-        [Compare("Password", ErrorMessage = "Şifreler eşleşmiyor")]
+        [Compare("Password", ErrorMessage = "Şifreler uyuşmuyor.")]
         public string ConfirmPassword { get; set; } = "";
 
-        [Required(ErrorMessage = "Ad Soyad gereklidir")]
-        [Display(Name = "Ad Soyad")]
-        public string FullName { get; set; } = "";
-
+        [Required(ErrorMessage = "Departman gereklidir")]
+        [StringLength(100, ErrorMessage = "Departman en fazla 100 karakter olabilir")]
         [Display(Name = "Departman")]
         public string Department { get; set; } = "";
 
-        [Display(Name = "Unvan")]
+        [StringLength(100, ErrorMessage = "Ünvan en fazla 100 karakter olabilir")]
+        [Display(Name = "Ünvan")]
         public string Title { get; set; } = "";
 
+        [StringLength(20, ErrorMessage = "Sicil No en fazla 20 karakter olabilir")]
         [Display(Name = "Sicil No")]
         public string EmployeeNumber { get; set; } = "";
+
+        [Phone(ErrorMessage = "Geçerli bir telefon numarası giriniz")]
+        [Display(Name = "Telefon")]
+        public string PhoneNumber { get; set; } = "";
+
+        [StringLength(200, ErrorMessage = "Adres en fazla 200 karakter olabilir")]
+        [Display(Name = "Adres")]
+        public string Address { get; set; } = "";
     }
 }

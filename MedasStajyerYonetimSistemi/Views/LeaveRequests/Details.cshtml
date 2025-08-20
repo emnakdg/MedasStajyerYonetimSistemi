@@ -315,11 +315,15 @@
                     idInput.value = id;
                     form.appendChild(idInput);
 
-                    var tokenInput = document.createElement('input');
-                    tokenInput.type = 'hidden';
-                    tokenInput.name = '__RequestVerificationToken';
-                    tokenInput.value = document.querySelector('input[name="__RequestVerificationToken"]').value;
-                    form.appendChild(tokenInput);
+                    // Anti-forgery token'ı doğru şekilde al
+                    var token = document.querySelector('input[name="__RequestVerificationToken"]');
+                    if (token) {
+                        var tokenInput = document.createElement('input');
+                        tokenInput.type = 'hidden';
+                        tokenInput.name = '__RequestVerificationToken';
+                        tokenInput.value = token.value;
+                        form.appendChild(tokenInput);
+                    }
 
                     document.body.appendChild(form);
                     form.submit();
@@ -327,16 +331,49 @@
             }
 
             function showRejectModal(id) {
+                // Modal açılmadan önce formu temizle
+                document.getElementById('rejectNote').value = '';
                 document.getElementById('rejectLeaveId').value = id;
                 document.getElementById('rejectForm').action = '@Url.Action("Reject", "LeaveRequests")';
                 new bootstrap.Modal(document.getElementById('rejectModal')).show();
             }
 
             function showRevisionModal(id) {
+                // Modal açılmadan önce formu temizle
+                document.getElementById('revisionNote').value = '';
                 document.getElementById('revisionLeaveId').value = id;
                 document.getElementById('revisionForm').action = '@Url.Action("RequestRevision", "LeaveRequests")';
                 new bootstrap.Modal(document.getElementById('revisionModal')).show();
             }
+
+            // Form validation
+            document.addEventListener('DOMContentLoaded', function() {
+                // Reject form validation
+                const rejectForm = document.getElementById('rejectForm');
+                if (rejectForm) {
+                    rejectForm.addEventListener('submit', function(e) {
+                        const rejectNote = document.getElementById('rejectNote').value.trim();
+                        if (!rejectNote) {
+                            e.preventDefault();
+                            alert('Lütfen red sebebini giriniz.');
+                            return false;
+                        }
+                    });
+                }
+
+                // Revision form validation
+                const revisionForm = document.getElementById('revisionForm');
+                if (revisionForm) {
+                    revisionForm.addEventListener('submit', function(e) {
+                        const revisionNote = document.getElementById('revisionNote').value.trim();
+                        if (!revisionNote) {
+                            e.preventDefault();
+                            alert('Lütfen revizyon notunu giriniz.');
+                            return false;
+                        }
+                    });
+                }
+            });
             </text>
     }
 </script>

@@ -8,8 +8,23 @@
     var userRoles = await UserManager.GetRolesAsync(currentUser);
     bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
     bool isIntern = userRoles.Contains("Intern");
-    bool canEdit = (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision) &&
-                   (canApprove || (isIntern && Model.Intern.Email == currentUser.Email));
+
+    // YENİ: Detaylı yetki kontrolü
+    bool internCanEditDetails = isIntern && Model.Intern.Email == currentUser.Email;
+
+    // Form düzenleme (Edit sayfası) hakları
+    bool canEditForm = false;
+    if (canApprove)
+    {
+        canEditForm = true; // Admin/HR/Supervisor her zaman
+    }
+    else if (internCanEditDetails)
+    {
+        canEditForm = (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision);
+    }
+
+    // Detay düzenleme hakları (onaylanmış puantajlarda da olabilir)
+    bool canEditDetails = canApprove || internCanEditDetails;
 }
 
 <div class="row">
@@ -20,11 +35,19 @@
                 <a asp-action="Index" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Geri
                 </a>
-                @if (canEdit)
+
+                @if (canEditForm)
                 {
                     <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
                         <i class="fas fa-edit"></i> Düzenle
                     </a>
+                }
+                else if (canEditDetails && Model.Status == ApprovalStatus.Approved)
+                {
+                    <!-- Onaylanmış puantajlarda sadece detay düzenleme bilgisi -->
+                    <span class="btn btn-info" title="Onaylanmış puantajlarda sadece günlük detayları düzenleyebilirsiniz">
+                        <i class="fas fa-info-circle"></i> Detay Düzenleme
+                    </span>
                 }
             </div>
         </div>
@@ -44,6 +67,48 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         }
+
+        @if (TempData["InfoMessage"] != null)
+        {
+            <div class="alert alert-info alert-dismissible fade show">
+                @TempData["InfoMessage"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        <!-- YENİ: Durum bilgisi -->
+        <div class="alert alert-@(Model.Status == ApprovalStatus.Approved ? "success" :
+                                               Model.Status == ApprovalStatus.Pending ? "warning" :
+                                               Model.Status == ApprovalStatus.Revision ? "info" : "danger")">
+            <strong>Durum:</strong>
+            @switch (Model.Status)
+            {
+                case ApprovalStatus.Pending:
+                    <span>Beklemede</span>
+                    break;
+                case ApprovalStatus.Approved:
+                    <span>Onaylandı</span>
+                    if (canEditDetails)
+                    {
+                        <br>
+            
+                        <small><i class="fas fa-info-circle"></i> Onaylanmış puantajlarda günlük detayları düzenleyebilirsiniz.</small>
+                    }
+                    break;
+                case ApprovalStatus.Revision:
+                    <span>Revizyon Gerekiyor</span>
+                    if (internCanEditDetails)
+                    {
+                        <br>
+            
+                        <small><i class="fas fa-exclamation-triangle"></i> Lütfen gerekli düzeltmeleri yapıp kaydedin.</small>
+                    }
+                    break;
+                case ApprovalStatus.Rejected:
+                    <span>Reddedildi</span>
+                    break;
+            }
+        </div>
 
         <div class="row">
             <!-- Ana Bilgiler -->
@@ -84,7 +149,23 @@
                         </div>
 
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Toplam Çalışma Günü:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-primary">@Model.TotalWorkDays gün</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Toplam İzin Günü:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-warning">@Model.TotalLeaveDays gün</span>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Manuel Form:</label>
                                     <p class="mb-0">
@@ -94,12 +175,11 @@
                                     </p>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Oluşturma Tarihi:</label>
-                                    <p class="mb-0">@Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
-                                </div>
-                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Oluşturma Tarihi:</label>
+                            <p class="mb-0">@Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
                         </div>
                     </div>
                 </div>
@@ -108,8 +188,14 @@
                 @if (Model.TimesheetDetails.Any())
                 {
                     <div class="card mt-3">
-                        <div class="card-header">
+                        <div class="card-header d-flex justify-content-between align-items-center">
                             <h5><i class="fas fa-list"></i> Günlük Detaylar</h5>
+                            @if (canEditDetails)
+                            {
+                                <small class="text-muted">
+                                    <i class="fas fa-edit"></i> Detayları düzenleyebilirsiniz
+                                </small>
+                            }
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -128,45 +214,101 @@
                                     <tbody>
                                         @foreach (var detail in Model.TimesheetDetails.OrderBy(d => d.WorkDate))
                                         {
-                                            <tr>
+                                            <tr class="@(detail.WorkDate.DayOfWeek == DayOfWeek.Saturday || detail.WorkDate.DayOfWeek == DayOfWeek.Sunday ? "table-secondary" : "")
+                                      @(!detail.IsPresent && detail.LeaveHours > 0 ? "table-warning" : "")">
                                                 <td>@detail.WorkDate.ToString("dd.MM.yyyy")</td>
                                                 <td>@detail.DayName</td>
                                                 <td>
                                                     @if (detail.IsPresent)
                                                     {
-                                                        <span class="badge bg-success">Evet</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="badge bg-danger">Hayır</span>
-                                                    }
-                                                </td>
-                                                <td>@detail.WorkLocation</td>
-                                                <td>
-                                                    @if (!string.IsNullOrEmpty(detail.LeaveInfo))
-                                                    {
-                                                        <span>@detail.LeaveInfo</span>
-                                                        @if (detail.LeaveHours > 0)
+                                                        <span class="badge bg-success">
+                                                            <i class="fas fa-check"></i> Var
+                                                        </span>
+                                                        @if (detail.StartTime.HasValue && detail.EndTime.HasValue)
                                                         {
                                                             <br>
                                             
-                                                            <small class="text-muted">(@detail.LeaveHours.ToString("F1") saat)</small>
+                                                            <small class="text-muted">
+                                                                @detail.StartTime.Value.ToString(@"hh\:mm") - @detail.EndTime.Value.ToString(@"hh\:mm")
+                                                            </small>
                                                         }
+                                                    }
+                                                    else if (detail.LeaveHours > 0)
+                                                    {
+                                                        <span class="badge bg-warning">
+                                                            <i class="fas fa-calendar-times"></i> İzinli
+                                                        </span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-secondary">
+                                                            <i class="fas fa-times"></i> Yok
+                                                        </span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @switch (detail.WorkLocation)
+                                                    {
+                                                        case WorkLocation.HeadOffice:
+                                                            <span>Genel Müdürlük</span>
+                                                            break;
+                                                        case WorkLocation.Branch:
+                                                            <span>İşletme</span>
+                                                            break;
+                                                        default:
+                                                            <span>@detail.WorkLocation.ToString()</span>
+                                                            break;
+                                                    }
+                                                </td>
+                                                <td>
+                                                    @if (!string.IsNullOrEmpty(detail.LeaveInfo))
+                                                    {
+                                                        <div class="alert alert-warning p-2 mb-0">
+                                                            
+                                                                <strong>İzin:</strong> @detail.LeaveInfo
+                                                                @if (detail.LeaveHours > 0)
+                                                                {
+                                                                <small>
+                                                                    <br>
+                                                                    <strong>Süre:</strong>
+ 
+                                                                    @detail.LeaveHours.ToString("F1")
+                                                                    saat  
+                                                                </small >
+                                                                                                                    }
+                                                            
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
                                                     }
                                                 </td>
                                                 <td>
                                                     @if (!string.IsNullOrEmpty(detail.TrainingInfo))
                                                     {
-                                                        <span>@detail.TrainingInfo</span>
-                                                        @if (detail.TrainingHours > 0)
-                                                        {
-                                                            <br>
-                                            
-                                                            <small class="text-muted">(@detail.TrainingHours.ToString("F1") saat)</small>
-                                                        }
+                                                        <div>
+                                                            <small>
+                                                                <strong>Eğitim:</strong> @detail.TrainingInfo
+                                                                <br><strong>Süre:</strong> @detail.TrainingHours.ToString("F1") saat
+                                                            </small>
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
                                                     }
                                                 </td>
-                                                <td>@detail.Notes</td>
+                                                <td>
+                                                    @if (!string.IsNullOrEmpty(detail.Notes))
+                                                    {
+                                                        <small>@detail.Notes</small>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted">-</span>
+                                                    }
+                                                </td>
                                             </tr>
                                         }
                                     </tbody>
@@ -222,7 +364,9 @@
                         {
                             <div class="mb-2">
                                 <label class="form-label fw-bold">Onay Notu:</label>
-                                <p class="mb-0">@Model.ApprovalNote</p>
+                                <div class="alert alert-info p-2">
+                                    <small>@Model.ApprovalNote</small>
+                                </div>
                             </div>
                         }
 
@@ -231,13 +375,22 @@
                         {
                             <hr>
                             <div class="d-grid gap-2">
-                                <button type="button" class="btn btn-success" onclick="approveTimesheet(@Model.Id)">
-                                    <i class="fas fa-check"></i> Onayla
-                                </button>
-                                <button type="button" class="btn btn-warning" onclick="showRevisionModal(@Model.Id)">
+                                <!-- ONAYLA BUTONU - Form ile yapılmalı -->
+                                <form method="post" asp-action="Approve" asp-controller="Timesheets" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@Model.Id" />
+                                    <button type="submit" class="btn btn-success w-100"
+                                            onclick="return confirm('Bu puantajı onaylamak istediğinizden emin misiniz?')">
+                                        <i class="fas fa-check"></i> Onayla
+                                    </button>
+                                </form>
+
+                                <!-- REVİZYON VE REDDET BUTONLARI -->
+                                <button type="button" class="btn btn-warning" onclick="showRevisionModal()">
                                     <i class="fas fa-edit"></i> Revizyon İste
                                 </button>
-                                <button type="button" class="btn btn-danger" onclick="showRejectModal(@Model.Id)">
+
+                                <button type="button" class="btn btn-danger" onclick="showRejectModal()">
                                     <i class="fas fa-times"></i> Reddet
                                 </button>
                             </div>
@@ -260,12 +413,13 @@
                     <h5 class="modal-title">Puantajı Reddet</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form id="rejectForm" method="post">
+                <form method="post" asp-action="Reject" asp-controller="Timesheets">
+                    @Html.AntiForgeryToken()
                     <div class="modal-body">
-                        <input type="hidden" id="rejectTimesheetId" name="id" />
+                        <input type="hidden" name="id" value="@Model.Id" />
                         <div class="mb-3">
                             <label for="rejectNote" class="form-label">Red Sebebi *</label>
-                            <textarea class="form-control" id="rejectNote" name="approvalNote" rows="3" required
+                            <textarea class="form-control" name="approvalNote" rows="3" required
                                   placeholder="Lütfen reddetme sebebinizi açıklayın..."></textarea>
                         </div>
                     </div>
@@ -286,12 +440,13 @@
                     <h5 class="modal-title">Revizyon İste</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form id="revisionForm" method="post">
+                <form method="post" asp-action="RequestRevision" asp-controller="Timesheets">
+                    @Html.AntiForgeryToken()
                     <div class="modal-body">
-                        <input type="hidden" id="revisionTimesheetId" name="id" />
+                        <input type="hidden" name="id" value="@Model.Id" />
                         <div class="mb-3">
                             <label for="revisionNote" class="form-label">Revizyon Notu *</label>
-                            <textarea class="form-control" id="revisionNote" name="approvalNote" rows="3" required
+                            <textarea class="form-control" name="approvalNote" rows="3" required
                                   placeholder="Hangi değişikliklerin yapılması gerektiğini belirtiniz..."></textarea>
                         </div>
                     </div>
@@ -303,47 +458,14 @@
             </div>
         </div>
     </div>
-}
 
-@section Scripts {
-    <!-- SADECE YETKİLİLER İÇİN JAVASCRIPT FONKSİYONLARI -->
-    @if (canApprove)
-    {
-        <script>
-            function approveTimesheet(id) {
-                if (confirm('Bu puantajı onaylamak istediğinizden emin misiniz?')) {
-                    var form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = '@Url.Action("Approve", "Timesheets")';
+    <script>
+        function showRejectModal() {
+            new bootstrap.Modal(document.getElementById('rejectModal')).show();
+        }
 
-                    var idInput = document.createElement('input');
-                    idInput.type = 'hidden';
-                    idInput.name = 'id';
-                    idInput.value = id;
-                    form.appendChild(idInput);
-
-                    var tokenInput = document.createElement('input');
-                    tokenInput.type = 'hidden';
-                    tokenInput.name = '__RequestVerificationToken';
-                    tokenInput.value = '@Html.AntiForgeryToken().ToString().Replace("<input name=\"__RequestVerificationToken\" type=\"hidden\" value=\"", "").Replace("\" />", "")';
-                    form.appendChild(tokenInput);
-
-                    document.body.appendChild(form);
-                    form.submit();
-                }
-            }
-
-            function showRejectModal(id) {
-                document.getElementById('rejectTimesheetId').value = id;
-                document.getElementById('rejectForm').action = '@Url.Action("Reject", "Timesheets")';
-                new bootstrap.Modal(document.getElementById('rejectModal')).show();
-            }
-
-            function showRevisionModal(id) {
-                document.getElementById('revisionTimesheetId').value = id;
-                document.getElementById('revisionForm').action = '@Url.Action("RequestRevision", "Timesheets")';
-                new bootstrap.Modal(document.getElementById('revisionModal')).show();
-            }
-        </script>
-    }
+        function showRevisionModal() {
+            new bootstrap.Modal(document.getElementById('revisionModal')).show();
+        }
+    </script>
 }

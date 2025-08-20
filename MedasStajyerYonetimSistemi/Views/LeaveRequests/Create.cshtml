@@ -98,11 +98,13 @@
                         </div>
                         <div class="col-md-6">
                             <div class="form-check mb-3">
-                                <input asp-for="ShouldReflectToTimesheet" class="form-check-input" type="checkbox" checked />
-                                <label asp-for="ShouldReflectToTimesheet" class="form-check-label">
+                                <input class="form-check-input" type="checkbox" asp-for="ShouldReflectToTimesheet" checked="checked" />
+                                <label class="form-check-label" asp-for="ShouldReflectToTimesheet">
                                     Puantaja Yansıt
                                 </label>
-                                <div class="form-text">İzin puantaj sistemine yansıtılsın mı?</div>
+                                <small class="form-text text-muted">
+                                    İzin onaylandığında otomatik olarak puantaja yansıtılsın mı?
+                                </small>
                             </div>
                         </div>
                     </div>
@@ -202,6 +204,94 @@
                 e.preventDefault();
                 alert('Geçmiş tarihli izin talebi oluşturulamaz!');
                 return false;
+            }
+        });
+    </script>
+
+
+    <script>
+        // Tarih ve saat değiştiğinde otomatik hesaplama
+        document.addEventListener('DOMContentLoaded', function() {
+            const startInput = document.querySelector('input[name="StartDateTime"]');
+            const endInput = document.querySelector('input[name="EndDateTime"]');
+            const dayDisplay = document.querySelector('.toplam-gun-display');
+            const hourDisplay = document.querySelector('.toplam-saat-display');
+
+            if (startInput && endInput) {
+                startInput.addEventListener('change', calculateLeave);
+                endInput.addEventListener('change', calculateLeave);
+
+                // Sayfa yüklendiğinde bir kez hesapla
+                calculateLeave();
+            }
+
+            function calculateLeave() {
+                const startDateTime = new Date(startInput.value);
+                const endDateTime = new Date(endInput.value);
+
+                if (startDateTime && endDateTime && endDateTime > startDateTime) {
+                    const result = calculateLeaveDaysAndHours(startDateTime, endDateTime);
+
+                    // Ekranda göster
+                    if (dayDisplay) {
+                        dayDisplay.textContent = result.days + ' gün';
+                    }
+                    if (hourDisplay) {
+                        hourDisplay.textContent = result.hours.toFixed(1) + ' saat';
+                    }
+
+                    // Gizli inputlara da yaz (eğer varsa)
+                    const totalDaysInput = document.querySelector('input[name="TotalDays"]');
+                    const totalHoursInput = document.querySelector('input[name="TotalHours"]');
+
+                    if (totalDaysInput) totalDaysInput.value = result.days;
+                    if (totalHoursInput) totalHoursInput.value = result.hours.toFixed(2);
+                }
+            }
+
+            function calculateLeaveDaysAndHours(startDateTime, endDateTime) {
+                let totalHours = 0;
+
+                // Aynı günde mi?
+                if (startDateTime.toDateString() === endDateTime.toDateString()) {
+                    // Aynı gün içerisinde saat bazlı izin
+                    totalHours = (endDateTime - startDateTime) / (1000 * 60 * 60); // millisaniye to saat
+                    return {
+                        days: 0, // Aynı gün olduğu için 0 gün
+                        hours: totalHours
+                    };
+                } else {
+                    // Birden fazla gün
+                    let currentDate = new Date(startDateTime);
+                    currentDate.setHours(0, 0, 0, 0); // Günün başına set et
+
+                    const endDate = new Date(endDateTime);
+                    endDate.setHours(0, 0, 0, 0);
+
+                    while (currentDate < endDate) { // Dönüş günü dahil edilmez
+                        if (currentDate.toDateString() === startDateTime.toDateString()) {
+                            // İlk gün - başlangıç saatinden 17:30'a kadar
+                            const endOfWorkDay = new Date(currentDate);
+                            endOfWorkDay.setHours(17, 30, 0, 0);
+
+                            const firstDayHours = Math.max(0, (endOfWorkDay - startDateTime) / (1000 * 60 * 60));
+                            totalHours += Math.min(firstDayHours, 9); // Max 9 saat
+                        } else {
+                            // Ara günler - tam çalışma günü
+                            totalHours += 9;
+                        }
+
+                        currentDate.setDate(currentDate.getDate() + 1);
+                    }
+
+                    // Gün sayısını hesapla (dönüş günü dahil edilmez)
+                    const totalDays = Math.max(0, (endDate - new Date(startDateTime.toDateString())) / (1000 * 60 * 60 * 24));
+
+                    return {
+                        days: totalDays,
+                        hours: totalHours
+                    };
+                }
             }
         });
     </script>

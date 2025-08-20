@@ -184,17 +184,19 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (ModelState.IsValid)
             {
-                // Toplam gün ve saat hesaplama
-                var timeSpan = leaveRequest.EndDateTime - leaveRequest.StartDateTime;
-                leaveRequest.TotalDays = (int)Math.Ceiling(timeSpan.TotalDays);
-                leaveRequest.TotalHours = (decimal)timeSpan.TotalHours;
+                // DÜZELTME: Toplam gün ve saat hesaplama
+                var totalHours = CalculateLeaveHours(leaveRequest.StartDateTime, leaveRequest.EndDateTime);
+                var totalDays = CalculateLeaveDays(leaveRequest.StartDateTime, leaveRequest.EndDateTime);
+
+                leaveRequest.TotalHours = totalHours;
+                leaveRequest.TotalDays = totalDays;
 
                 // Çakışan izin kontrolü
                 var conflictingLeave = await _context.LeaveRequests
                     .Where(lr => lr.InternId == leaveRequest.InternId)
                     .Where(lr => lr.Status == ApprovalStatus.Approved || lr.Status == ApprovalStatus.Pending)
                     .Where(lr =>
-                        (lr.StartDateTime <= leaveRequest.EndDateTime && lr.EndDateTime >= leaveRequest.StartDateTime))
+                        (lr.StartDateTime < leaveRequest.EndDateTime && lr.EndDateTime > leaveRequest.StartDateTime))
                     .FirstOrDefaultAsync();
 
                 if (conflictingLeave != null)
@@ -224,6 +226,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             await PopulateDropDowns(leaveRequest.InternId);
             return View(leaveRequest);
         }
+
 
         // GET: LeaveRequests/Edit - İzin Düzenleme (Stajyer + Yetkili roller)
         public async Task<IActionResult> Edit(int? id)
@@ -412,7 +415,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // POST: LeaveRequests/Approve - İzin Onaylama (Sadece yetkili roller)
+        // POST: LeaveRequests/Approve - İzin Onaylama (Sadece Yetkililer)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin,HR,Supervisor")]
@@ -442,15 +445,128 @@ namespace MedasStajyerYonetimSistemi.Controllers
             _context.Update(leaveRequest);
             await _context.SaveChangesAsync();
 
+            // YENİ: İzin onaylandığında puantaja otomatik yansıt
+            if (leaveRequest.ShouldReflectToTimesheet)
+            {
+                await ReflectLeaveToTimesheet(leaveRequest);
+            }
+
             TempData["SuccessMessage"] = $"{leaveRequest.Intern.FullName} adlı stajyerin izin talebi onaylandı.";
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        // POST: LeaveRequests/Reject - İzin Reddetme (Sadece yetkili roller)
+        // YENİ METOD: İzni puantaja yansıtma
+        private async Task ReflectLeaveToTimesheet(LeaveRequest leaveRequest)
+        {
+            try
+            {
+                // ÖNEMLI: Dönüş tarihi DAHİL EDİLMEZ - o gün işe dönüş günüdür
+                // İzin tarihlerini günlere böl (dönüş tarihi hariç)
+                for (var date = leaveRequest.StartDateTime.Date; date < leaveRequest.EndDateTime.Date; date = date.AddDays(1))
+                {
+                    // Bu ay için puantaj var mı kontrol et
+                    var timesheet = await _context.Timesheets
+                        .Include(t => t.TimesheetDetails)
+                        .FirstOrDefaultAsync(t => t.InternId == leaveRequest.InternId &&
+                                                t.PeriodDate.Year == date.Year &&
+                                                t.PeriodDate.Month == date.Month);
+
+                    if (timesheet == null)
+                    {
+                        // Puantaj yoksa oluştur
+                        timesheet = new Timesheet
+                        {
+                            InternId = leaveRequest.InternId,
+                            PeriodDate = new DateTime(date.Year, date.Month, 1),
+                            Status = ApprovalStatus.Pending,
+                            CreatedDate = DateTime.Now,
+                            IsManualEntry = true,
+                            ManualEntryBy = "System_LeaveIntegration"
+                        };
+
+                        _context.Timesheets.Add(timesheet);
+                        await _context.SaveChangesAsync();
+
+                        // Aylık detayları oluştur
+                        await CreateMonthlyTimesheetDetailsForLeave(timesheet);
+                    }
+
+                    // Bu tarihe ait puantaj detayını bul
+                    var timesheetDetail = timesheet.TimesheetDetails
+                        .FirstOrDefault(td => td.WorkDate.Date == date.Date);
+
+                    if (timesheetDetail != null)
+                    {
+                        // İzin bilgilerini güncelle
+                        timesheetDetail.IsPresent = false;
+                        timesheetDetail.LeaveInfo = $"{GetLeaveTypeDescription(leaveRequest.LeaveType)} - Onaylandı";
+
+                        // DÜZELTME: Saatlik hesaplama - doğru tarih karşılaştırması
+                        if (leaveRequest.StartDateTime.Date == leaveRequest.EndDateTime.Date)
+                        {
+                            // AYNI GÜN içinde başlayıp bitiyor (örn: 09:00-14:00)
+                            timesheetDetail.LeaveHours = (decimal)(leaveRequest.EndDateTime - leaveRequest.StartDateTime).TotalHours;
+                        }
+                        else if (date.Date == leaveRequest.StartDateTime.Date)
+                        {
+                            // İLK GÜN - başlangıç saatinden gün sonuna kadar
+                            // Örnek: 25.08.2025 08:30'dan 17:30'a kadar = 9 saat
+                            var endOfWorkDay = date.Date.AddHours(17).AddMinutes(30); // 17:30
+                            timesheetDetail.LeaveHours = (decimal)(endOfWorkDay - leaveRequest.StartDateTime).TotalHours;
+
+                            // Eğer başlangıç saati 17:30'dan sonraysa, o gün tam izin sayılır
+                            if (leaveRequest.StartDateTime.TimeOfDay > TimeSpan.FromHours(17.5))
+                            {
+                                timesheetDetail.LeaveHours = 0; // O gün izin yok
+                            }
+                        }
+                        else if (date.Date == leaveRequest.EndDateTime.Date.AddDays(-1))
+                        {
+                            // SON GÜN öncesi - dönüş gününden bir gün önceki son gün
+                            // Bu durumda tam gün izin verilir
+                            timesheetDetail.LeaveHours = 9; // Standart 9 saatlik çalışma günü (8:30-17:30)
+                        }
+                        else
+                        {
+                            // ARA GÜNLER - tam gün izin
+                            timesheetDetail.LeaveHours = 9; // Standart 9 saatlik çalışma günü
+                        }
+
+                        timesheetDetail.StartTime = null;
+                        timesheetDetail.EndTime = null;
+                        timesheetDetail.HasMealAllowance = false;
+
+                        // Notlar kısmına detay ekle
+                        timesheetDetail.Notes = $"İzin Talebi #{leaveRequest.Id} - {leaveRequest.StartDateTime:dd.MM.yyyy HH:mm} / {leaveRequest.EndDateTime:dd.MM.yyyy HH:mm}";
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Puantaj toplamlarını yeniden hesapla
+                var affectedTimesheets = await _context.Timesheets
+                    .Where(t => t.InternId == leaveRequest.InternId &&
+                               t.PeriodDate >= new DateTime(leaveRequest.StartDateTime.Year, leaveRequest.StartDateTime.Month, 1) &&
+                               t.PeriodDate <= new DateTime(leaveRequest.EndDateTime.Year, leaveRequest.EndDateTime.Month, 1))
+                    .ToListAsync();
+
+                foreach (var timesheet in affectedTimesheets)
+                {
+                    await RecalculateTimesheetTotals(timesheet.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the approval process
+                System.Diagnostics.Debug.WriteLine($"İzin puantaja yansıtılırken hata: {ex.Message}");
+            }
+        }
+
+        // POST: LeaveRequests/Reject - İzin Reddetme(Sadece yetkili roller)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin,HR,Supervisor")]
-        public async Task<IActionResult> Reject(int id, string rejectionReason)
+        public async Task<IActionResult> Reject(int id, string approvalNote)
         {
             var leaveRequest = await _context.LeaveRequests
                 .Include(lr => lr.Intern)
@@ -464,7 +580,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 return RedirectToAction(nameof(Details), new { id });
             }
 
-            if (string.IsNullOrWhiteSpace(rejectionReason))
+            if (string.IsNullOrWhiteSpace(approvalNote))
             {
                 TempData["ErrorMessage"] = "Red nedeni belirtilmelidir.";
                 return RedirectToAction(nameof(Details), new { id });
@@ -476,14 +592,14 @@ namespace MedasStajyerYonetimSistemi.Controllers
             leaveRequest.ApproverId = currentUser?.Id;
             leaveRequest.ApproverName = currentUser?.FullName ?? currentUser?.UserName;
             leaveRequest.ApprovalDate = DateTime.Now;
-            leaveRequest.ApprovalNote = rejectionReason;
+            leaveRequest.ApprovalNote = approvalNote;
             leaveRequest.UpdatedDate = DateTime.Now;
 
             _context.Update(leaveRequest);
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"{leaveRequest.Intern.FullName} adlı stajyerin izin talebi reddedildi.";
-            return RedirectToAction(nameof(Details), new { id });
+            return RedirectToAction(nameof(Index));
         }
 
         // GET: LeaveRequests/Delete - İzin Talebini Sil (Sadece Admin ve kendi talebi)
@@ -667,6 +783,61 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
         // Helper Methods
+
+
+        // İzin saatlerini hesaplar - standart çalışma saatleri 08:30-17:30 (9 saat)
+        private decimal CalculateLeaveHours(DateTime startDateTime, DateTime endDateTime)
+        {
+            decimal totalHours = 0;
+
+            // Aynı günde başlayıp bitiyor mu?
+            if (startDateTime.Date == endDateTime.Date)
+            {
+                // Aynı gün içerisinde saat bazlı izin
+                totalHours = (decimal)(endDateTime - startDateTime).TotalHours;
+            }
+            else
+            {
+                // Birden fazla gün
+                var currentDate = startDateTime.Date;
+
+                while (currentDate < endDateTime.Date) // Dönüş günü DAHİL EDİLMEZ
+                {
+                    if (currentDate == startDateTime.Date)
+                    {
+                        // İlk gün - başlangıç saatinden gün sonuna kadar
+                        var endOfWorkDay = currentDate.AddHours(17).AddMinutes(30); // 17:30
+                        var firstDayHours = (decimal)(endOfWorkDay - startDateTime).TotalHours;
+
+                        // Eğer negatifse veya çok büyükse, standart çalışma saati ver
+                        if (firstDayHours <= 0 || firstDayHours > 9)
+                            firstDayHours = 9;
+
+                        totalHours += firstDayHours;
+                    }
+                    else
+                    {
+                        // Ara günler - tam çalışma günü (9 saat)
+                        totalHours += 9;
+                    }
+
+                    currentDate = currentDate.AddDays(1);
+                }
+            }
+
+            return Math.Round(totalHours, 2);
+        }
+
+        // İzin günlerini hesaplar - dönüş günü dahil edilmez
+        private int CalculateLeaveDays(DateTime startDateTime, DateTime endDateTime)
+        {
+            // Dönüş günü dahil edilmez - o gün işe dönüş günüdür
+            var totalDays = (endDateTime.Date - startDateTime.Date).Days;
+
+            // Minimum 0, eğer aynı günse 0 gün (sadece saatlik izin)
+            return Math.Max(0, totalDays);
+        }
+
         private bool LeaveRequestExists(int id)
         {
             return _context.LeaveRequests.Any(e => e.Id == id);
@@ -709,6 +880,43 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 "Text");
         }
 
+        // Aylık puantaj detayları oluştur (sadece izin için)
+        private async Task CreateMonthlyTimesheetDetailsForLeave(Timesheet timesheet)
+        {
+            var startDate = new DateTime(timesheet.PeriodDate.Year, timesheet.PeriodDate.Month, 1);
+            var endDate = startDate.AddMonths(1).AddDays(-1);
+
+            var details = new List<TimesheetDetail>();
+
+            for (var date = startDate; date <= endDate; date = date.AddDays(1))
+            {
+                var detail = new TimesheetDetail
+                {
+                    TimesheetId = timesheet.Id,
+                    WorkDate = date,
+                    DayNumber = date.Day,
+                    DayName = GetTurkishDayName(date.DayOfWeek),
+                    WorkLocation = WorkLocation.HeadOffice,
+                    IsPresent = false, // Başlangıçta tüm günler işaretsiz
+                    StartTime = null,
+                    EndTime = null,
+                    HasMealAllowance = false,
+                    LeaveHours = 0,
+                    LeaveInfo = "",
+                    TrainingHours = 0,
+                    TrainingInfo = "",
+                    Notes = ""
+                };
+
+                details.Add(detail);
+            }
+
+            timesheet.TimesheetDetails = details;
+            timesheet.TotalWorkDays = 0;
+            timesheet.TotalLeaveDays = 0;
+            timesheet.TotalTrainingHours = 0;
+        }
+
         private string GetLeaveTypeDescription(LeaveType leaveType)
         {
             return leaveType switch
@@ -719,6 +927,39 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 LeaveType.ExcuseLeave => "Mazeret İzni",
                 LeaveType.UnpaidLeave => "Ücretsiz İzin",
                 _ => "İzin"
+            };
+        }
+
+        // Puantaj toplamlarını yeniden hesapla (mevcut metoda eklenmeli)
+        private async Task RecalculateTimesheetTotals(int timesheetId)
+        {
+            var timesheet = await _context.Timesheets
+                .Include(t => t.TimesheetDetails)
+                .FirstOrDefaultAsync(t => t.Id == timesheetId);
+
+            if (timesheet != null)
+            {
+                timesheet.TotalWorkDays = timesheet.TimesheetDetails.Count(td => td.IsPresent);
+                timesheet.TotalLeaveDays = timesheet.TimesheetDetails.Count(td => !td.IsPresent && td.LeaveHours > 0);
+                timesheet.TotalTrainingHours = timesheet.TimesheetDetails.Sum(td => td.TrainingHours);
+                timesheet.UpdatedDate = DateTime.Now;
+
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        private string GetTurkishDayName(DayOfWeek dayOfWeek)
+        {
+            return dayOfWeek switch
+            {
+                DayOfWeek.Monday => "Pazartesi",
+                DayOfWeek.Tuesday => "Salı",
+                DayOfWeek.Wednesday => "Çarşamba",
+                DayOfWeek.Thursday => "Perşembe",
+                DayOfWeek.Friday => "Cuma",
+                DayOfWeek.Saturday => "Cumartesi",
+                DayOfWeek.Sunday => "Pazar",
+                _ => "Bilinmeyen"
             };
         }
 
