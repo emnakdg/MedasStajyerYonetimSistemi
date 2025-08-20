@@ -737,8 +737,3 @@ namespace MedasStajyerYonetimSistemi.Controllers
     }
 }
 
-//ik olarak giriş yaptığımda timesheet indexde onayla butonuna bastığımda bu hatayı veriyor **Bu sayfa çalışmıyor**
-//Sorun devam ederse site sahibiyle iletişime geçin.
-//HTTP ERROR 400 gösteriyor urldeTimesheets/Approve
-
-//leaverequests indexde ve leaverequests detailde reddetmek istediğimde reddetme sebebi girmeme ve reddet dememe rağmen açıklama girilmelidir diyor ve reddetmiyor
