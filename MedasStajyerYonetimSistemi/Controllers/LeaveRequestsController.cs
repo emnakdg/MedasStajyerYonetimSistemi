@@ -225,8 +225,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // GET: LeaveRequests/Edit - İzin Talebini Düzenle
-        // Sadece beklemede olan talepleri düzenleyebilir ve kendi talebi olmalı (stajyer için)
+        // GET: LeaveRequests/Edit - İzin Düzenleme (Stajyer + Yetkili roller)
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
@@ -240,24 +239,68 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (leaveRequest == null) return NotFound();
 
-            if (leaveRequest.Status != ApprovalStatus.Pending)
+            // Yetki kontrolü
+            bool canEdit = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri") ||
+                           (userRoles.Contains("Intern") && leaveRequest.Intern.Email == currentUser.Email);
+
+            if (!canEdit)
             {
-                TempData["ErrorMessage"] = "Sadece beklemede olan izin talepleri düzenlenebilir.";
-                return RedirectToAction(nameof(Details), new { id });
+                TempData["ErrorMessage"] = "Bu izin talebini düzenleme yetkiniz bulunmuyor.";
+                return RedirectToAction(nameof(Index));
             }
 
-            // Eğer stajyer ise sadece kendi talebini düzenleyebilir
-            if (userRoles.Contains("Intern") && leaveRequest.Intern.Email != currentUser.Email)
+            // Sadece beklemede veya revizyon durumundaki talepler düzenlenebilir
+            if (leaveRequest.Status != ApprovalStatus.Pending && leaveRequest.Status != ApprovalStatus.Revision)
             {
-                TempData["ErrorMessage"] = "Bu izin talebini düzenleme yetkiniz bulunmamaktadır.";
-                return RedirectToAction(nameof(Index));
+                TempData["ErrorMessage"] = "Sadece beklemede veya revizyon durumundaki talepler düzenlenebilir.";
+                return RedirectToAction(nameof(Details), new { id });
             }
 
             await PopulateDropDowns(leaveRequest.InternId);
             return View(leaveRequest);
         }
 
-        // POST: LeaveRequests/Edit - İzin Talebini Güncelle
+        // POST: LeaveRequests/RequestRevision - İzin Revizyon İsteme (Sadece yetkili roller)
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin,HR,Supervisor,PersonelIsleri")]
+        public async Task<IActionResult> RequestRevision(int id, string approvalNote)
+        {
+            if (string.IsNullOrWhiteSpace(approvalNote))
+            {
+                TempData["ErrorMessage"] = "Revizyon notu belirtilmelidir.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            var leaveRequest = await _context.LeaveRequests
+                .Include(lr => lr.Intern)
+                .FirstOrDefaultAsync(lr => lr.Id == id);
+
+            if (leaveRequest == null) return NotFound();
+
+            if (leaveRequest.Status != ApprovalStatus.Pending)
+            {
+                TempData["ErrorMessage"] = "Sadece beklemede olan izin talepleri için revizyon istenebilir.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            var currentUser = await _userManager.GetUserAsync(User);
+
+            leaveRequest.Status = ApprovalStatus.Revision;
+            leaveRequest.ApproverId = currentUser?.Id;
+            leaveRequest.ApproverName = currentUser?.FullName ?? currentUser?.UserName;
+            leaveRequest.ApprovalDate = DateTime.Now;
+            leaveRequest.ApprovalNote = approvalNote;
+            leaveRequest.UpdatedDate = DateTime.Now;
+
+            _context.Update(leaveRequest);
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = $"{leaveRequest.Intern.FullName} adlı stajyerin izin talebi için revizyon istendi.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        // POST: LeaveRequests/Edit - İzin Güncelleme
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, LeaveRequest leaveRequest)
@@ -267,16 +310,34 @@ namespace MedasStajyerYonetimSistemi.Controllers
             var currentUser = await _userManager.GetUserAsync(User);
             var userRoles = await _userManager.GetRolesAsync(currentUser);
 
+            // Yetki kontrolü
+            var existingLeaveRequest = await _context.LeaveRequests
+                .Include(lr => lr.Intern)
+                .FirstOrDefaultAsync(lr => lr.Id == id);
+
+            if (existingLeaveRequest == null) return NotFound();
+
+            bool canEdit = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri") ||
+                           (userRoles.Contains("Intern") && existingLeaveRequest.Intern.Email == currentUser.Email);
+
+            if (!canEdit)
+            {
+                TempData["ErrorMessage"] = "Bu izin talebini düzenleme yetkiniz bulunmuyor.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Navigation property hatalarını temizle
             ModelState.Remove("Intern");
             ModelState.Remove("Approver");
             ModelState.Remove("ApprovalHistories");
 
-            // Tarih kontrolleri
+            // Tarih kontrolü
             if (leaveRequest.StartDateTime > leaveRequest.EndDateTime)
             {
                 ModelState.AddModelError("EndDateTime", "Dönüş tarihi çıkış tarihinden önce olamaz.");
             }
 
+            // Geçmiş tarih kontrolü
             if (leaveRequest.StartDateTime < DateTime.Now.Date)
             {
                 ModelState.AddModelError("StartDateTime", "Geçmiş tarihli izin talebi oluşturulamaz.");
@@ -286,49 +347,49 @@ namespace MedasStajyerYonetimSistemi.Controllers
             {
                 try
                 {
-                    // Mevcut kaydı kontrol et
-                    var existingRequest = await _context.LeaveRequests
-                        .Include(lr => lr.Intern)
-                        .FirstOrDefaultAsync(lr => lr.Id == id);
+                    // Sadece belirli alanları güncelle
+                    existingLeaveRequest.LeaveType = leaveRequest.LeaveType;
+                    existingLeaveRequest.StartDateTime = leaveRequest.StartDateTime;
+                    existingLeaveRequest.EndDateTime = leaveRequest.EndDateTime;
+                    existingLeaveRequest.Reason = leaveRequest.Reason;
+                    existingLeaveRequest.ShouldReflectToTimesheet = leaveRequest.ShouldReflectToTimesheet;
+                    existingLeaveRequest.UpdatedDate = DateTime.Now;
 
-                    if (existingRequest == null) return NotFound();
+                    // Toplam süreyi hesapla
+                    var totalHours = (decimal)(leaveRequest.EndDateTime - leaveRequest.StartDateTime).TotalHours;
+                    existingLeaveRequest.TotalHours = totalHours;
+                    existingLeaveRequest.TotalDays = totalHours >= 8 ? (int)Math.Ceiling(totalHours / 8) : 0;
 
-                    // Sadece beklemede olanlar düzenlenebilir
-                    if (existingRequest.Status != ApprovalStatus.Pending)
+                    // Eğer stajyer düzenliyorsa, durumu beklemede yap
+                    if (userRoles.Contains("Intern") && existingLeaveRequest.Status == ApprovalStatus.Revision)
                     {
-                        TempData["ErrorMessage"] = "Sadece beklemede olan izin talepleri düzenlenebilir.";
-                        return RedirectToAction(nameof(Details), new { id });
+                        existingLeaveRequest.Status = ApprovalStatus.Pending;
+                        existingLeaveRequest.ApprovalNote = null;
+                        existingLeaveRequest.ApprovalDate = null;
+                        existingLeaveRequest.ApproverId = null;
+                        existingLeaveRequest.ApproverName = null;
                     }
 
-                    // Eğer stajyer ise sadece kendi talebini düzenleyebilir
-                    if (userRoles.Contains("Intern") && existingRequest.Intern.Email != currentUser.Email)
-                    {
-                        TempData["ErrorMessage"] = "Bu izin talebini düzenleme yetkiniz bulunmamaktadır.";
-                        return RedirectToAction(nameof(Index));
-                    }
-
-                    // Toplam gün ve saat hesaplama
-                    var timeSpan = leaveRequest.EndDateTime - leaveRequest.StartDateTime;
-                    leaveRequest.TotalDays = (int)Math.Ceiling(timeSpan.TotalDays);
-                    leaveRequest.TotalHours = (decimal)timeSpan.TotalHours;
-
-                    // Çakışan izin kontrolü (kendisi hariç)
+                    // Çakışma kontrolü (düzenlenen kayıt hariç)
                     var conflictingLeave = await _context.LeaveRequests
-                        .Where(lr => lr.InternId == leaveRequest.InternId && lr.Id != id)
-                        .Where(lr => lr.Status == ApprovalStatus.Approved || lr.Status == ApprovalStatus.Pending)
-                        .Where(lr =>
-                            (lr.StartDateTime <= leaveRequest.EndDateTime && lr.EndDateTime >= leaveRequest.StartDateTime))
+                        .Where(lr => lr.InternId == existingLeaveRequest.InternId &&
+                                    lr.Id != existingLeaveRequest.Id &&
+                                    lr.Status == ApprovalStatus.Approved &&
+                                    ((lr.StartDateTime <= leaveRequest.StartDateTime && lr.EndDateTime > leaveRequest.StartDateTime) ||
+                                     (lr.StartDateTime < leaveRequest.EndDateTime && lr.EndDateTime >= leaveRequest.EndDateTime) ||
+                                     (lr.StartDateTime >= leaveRequest.StartDateTime && lr.EndDateTime <= leaveRequest.EndDateTime)))
                         .FirstOrDefaultAsync();
 
                     if (conflictingLeave != null)
                     {
-                        ModelState.AddModelError("", $"Bu tarih aralığında zaten bir izin talebiniz bulunmaktadır. ({conflictingLeave.StartDateTime:dd.MM.yyyy HH:mm} - {conflictingLeave.EndDateTime:dd.MM.yyyy HH:mm})");
+                        ModelState.AddModelError("",
+                            $"Bu tarihler arasında onaylanmış başka bir izin bulunmaktadır. " +
+                            $"({conflictingLeave.StartDateTime:dd.MM.yyyy HH:mm} - {conflictingLeave.EndDateTime:dd.MM.yyyy HH:mm})");
                         await PopulateDropDowns(leaveRequest.InternId);
                         return View(leaveRequest);
                     }
 
-                    leaveRequest.UpdatedDate = DateTime.Now;
-                    _context.Update(leaveRequest);
+                    _context.Update(existingLeaveRequest);
                     await _context.SaveChangesAsync();
 
                     TempData["SuccessMessage"] = "İzin talebi başarıyla güncellendi.";
@@ -675,3 +736,9 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
     }
 }
+
+//ik olarak giriş yaptığımda timesheet indexde onayla butonuna bastığımda bu hatayı veriyor **Bu sayfa çalışmıyor**
+//Sorun devam ederse site sahibiyle iletişime geçin.
+//HTTP ERROR 400 gösteriyor urldeTimesheets/Approve
+
+//leaverequests indexde ve leaverequests detailde reddetmek istediğimde reddetme sebebi girmeme ve reddet dememe rağmen açıklama girilmelidir diyor ve reddetmiyor

@@ -1,7 +1,15 @@
 ﻿@model MedasStajyerYonetimSistemi.Models.LeaveRequest
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
 
 @{
     ViewData["Title"] = "İzin Talebi Detayı";
+    var currentUser = await UserManager.GetUserAsync(User);
+    var userRoles = await UserManager.GetRolesAsync(currentUser);
+    bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
+    bool isIntern = userRoles.Contains("Intern");
+    bool canEdit = (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision) &&
+                   (canApprove || (isIntern && Model.Intern.Email == currentUser.Email));
 }
 
 <div class="row">
@@ -12,7 +20,7 @@
                 <a asp-action="Index" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Geri
                 </a>
-                @if (Model.Status == ApprovalStatus.Pending)
+                @if (canEdit && !canApprove && isIntern)
                 {
                     <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
                         <i class="fas fa-edit"></i> Düzenle
@@ -50,37 +58,40 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-bold">Stajyer:</label>
                                     <p class="mb-0">@Model.Intern.FullName</p>
-                                    <small class="text-muted">@Model.Intern.Department</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
+                                    <label class="form-label fw-bold">Departman:</label>
+                                    <p class="mb-0">@Model.Intern.Department</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
                                     <label class="form-label fw-bold">İzin Türü:</label>
                                     <p class="mb-0">
-                                        <span class="badge bg-info">
+                                        <span class="badge bg-primary">
                                             @switch (Model.LeaveType)
                                             {
                                                 case LeaveType.PersonalLeave:
                                                     @("Özel İzin")
                                                     break;
-                                                case LeaveType.ExamLeave:
-
-                                                    @("Sınav İzni")
-                                                    break;
                                                 case LeaveType.HealthLeave:
-
                                                     @("Sağlık İzni")
                                                     break;
+                                                case LeaveType.ExamLeave:
+                                                    @("Sınav İzni")
+                                                    break;
                                                 case LeaveType.ExcuseLeave:
-
                                                     @("Mazeret İzni")
                                                     break;
                                                 case LeaveType.UnpaidLeave:
-
                                                     @("Ücretsiz İzin")
                                                     break;
                                                 default:
-
                                                     @("Bilinmeyen")
                                                     break;
                                             }
@@ -108,17 +119,14 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold">Toplam Süre:</label>
-                                    <p class="mb-0">
-                                        <span class="badge bg-secondary">@Model.TotalDays gün</span>
-                                        <span class="badge bg-light text-dark">@Model.TotalHours.ToString("F1") saat</span>
-                                    </p>
+                                    <label class="form-label fw-bold">Toplam Gün:</label>
+                                    <p class="mb-0">@Model.TotalDays gün</p>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold">Talep Tarihi:</label>
-                                    <p class="mb-0">@Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
+                                    <label class="form-label fw-bold">Toplam Saat:</label>
+                                    <p class="mb-0">@Model.TotalHours.ToString("F1") saat</p>
                                 </div>
                             </div>
                         </div>
@@ -126,24 +134,30 @@
                         @if (!string.IsNullOrEmpty(Model.Reason))
                         {
                             <div class="mb-3">
-                                <label class="form-label fw-bold">İzin/Görev Sebebi:</label>
-                                <div class="bg-light p-3 rounded">
-                                    @Model.Reason
-                                </div>
+                                <label class="form-label fw-bold">İzin Sebebi:</label>
+                                <p class="mb-0">@Model.Reason</p>
                             </div>
                         }
 
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" @(Model.IsManualEntry ? "checked" : "") disabled>
-                                    <label class="form-check-label">Manuel Form</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Manuel Form:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-@(Model.IsManualEntry ? "warning" : "secondary")">
+                                            @(Model.IsManualEntry ? "Evet" : "Hayır")
+                                        </span>
+                                    </p>
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" @(Model.ShouldReflectToTimesheet ? "checked" : "") disabled>
-                                    <label class="form-check-label">Puantaja Yansıt</label>
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Puantaja Yansıt:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-@(Model.ShouldReflectToTimesheet ? "success" : "secondary")">
+                                            @(Model.ShouldReflectToTimesheet ? "Evet" : "Hayır")
+                                        </span>
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -155,157 +169,174 @@
             <div class="col-md-4">
                 <div class="card">
                     <div class="card-header">
-                        <h5><i class="fas fa-check-circle"></i> Onay Durumu</h5>
+                        <h5><i class="fas fa-clipboard-check"></i> Onay Durumu</h5>
                     </div>
                     <div class="card-body">
                         <div class="text-center mb-3">
                             @switch (Model.Status)
                             {
                                 case ApprovalStatus.Pending:
-                                    <span class="badge bg-warning fs-6 px-3 py-2">
-                                        <i class="fas fa-clock"></i> Beklemede
-                                    </span>
+                                    <span class="badge bg-warning fs-6 p-2">Beklemede</span>
                                     break;
                                 case ApprovalStatus.Approved:
-                                    <span class="badge bg-success fs-6 px-3 py-2">
-                                        <i class="fas fa-check"></i> Onaylandı
-                                    </span>
+                                    <span class="badge bg-success fs-6 p-2">Onaylandı</span>
                                     break;
                                 case ApprovalStatus.Rejected:
-                                    <span class="badge bg-danger fs-6 px-3 py-2">
-                                        <i class="fas fa-times"></i> Reddedildi
-                                    </span>
+                                    <span class="badge bg-danger fs-6 p-2">Reddedildi</span>
+                                    break;
+                                case ApprovalStatus.Revision:
+                                    <span class="badge bg-info fs-6 p-2">Revizyon Gerekiyor</span>
                                     break;
                             }
                         </div>
 
-                        @if (Model.Status != ApprovalStatus.Pending)
+                        @if (!string.IsNullOrEmpty(Model.ApproverName))
                         {
-                            <div class="mb-3">
+                            <div class="mb-2">
                                 <label class="form-label fw-bold">Onaylayan:</label>
-                                <p class="mb-0">@(Model.ApproverName ?? "Bilinmiyor")</p>
+                                <p class="mb-0">@Model.ApproverName</p>
                             </div>
-
-                            <div class="mb-3">
-                                <label class="form-label fw-bold">Onay Tarihi:</label>
-                                <p class="mb-0">@Model.ApprovalDate?.ToString("dd.MM.yyyy HH:mm")</p>
-                            </div>
-
-                            @if (!string.IsNullOrEmpty(Model.ApprovalNote))
-                            {
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">
-                                        @(Model.Status == ApprovalStatus.Approved ? "Onay Notu:" : "Red Nedeni:")
-                                    </label>
-                                    <div class="@(Model.Status == ApprovalStatus.Approved ? "bg-success" : "bg-danger") bg-opacity-10 p-3 rounded">
-                                        @Model.ApprovalNote
-                                    </div>
-                                </div>
-                            }
                         }
 
-                        @if (Model.Status == ApprovalStatus.Pending)
+                        @if (Model.ApprovalDate.HasValue)
                         {
+                            <div class="mb-2">
+                                <label class="form-label fw-bold">Onay Tarihi:</label>
+                                <p class="mb-0">@Model.ApprovalDate.Value.ToString("dd.MM.yyyy HH:mm")</p>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(Model.ApprovalNote))
+                        {
+                            <div class="mb-2">
+                                <label class="form-label fw-bold">Onay Notu:</label>
+                                <p class="mb-0">@Model.ApprovalNote</p>
+                            </div>
+                        }
+
+                        <div class="mb-2">
+                            <label class="form-label fw-bold">Talep Tarihi:</label>
+                            <p class="mb-0">@Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
+                        </div>
+
+                        <!-- ONAYLAMA BUTONLARI - SADECE YETKİLİ ROLLER GÖREBİLİR -->
+                        @if (canApprove && (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision))
+                        {
+                            <hr>
                             <div class="d-grid gap-2">
-                                <button type="button" class="btn btn-success" onclick="showApproveModal()">
+                                <button type="button" class="btn btn-success" onclick="approveLeave(@Model.Id)">
                                     <i class="fas fa-check"></i> Onayla
                                 </button>
-                                <button type="button" class="btn btn-danger" onclick="showRejectModal()">
+                                <button type="button" class="btn btn-warning" onclick="showRevisionModal(@Model.Id)">
+                                    <i class="fas fa-edit"></i> Revizyon İste
+                                </button>
+                                <button type="button" class="btn btn-danger" onclick="showRejectModal(@Model.Id)">
                                     <i class="fas fa-times"></i> Reddet
                                 </button>
                             </div>
                         }
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-                @if (Model.IsManualEntry && !string.IsNullOrEmpty(Model.ManualEntryBy))
-                {
-                    <div class="card mt-3">
-                        <div class="card-header">
-                            <h6><i class="fas fa-user-edit"></i> Manuel Giriş</h6>
-                        </div>
-                        <div class="card-body">
-                            <p class="mb-0"><strong>Giren Kişi:</strong> @Model.ManualEntryBy</p>
+<!-- MODAL'LAR - SADECE YETKİLİLER İÇİN -->
+@if (canApprove)
+{
+    <!-- Reddetme Modal -->
+    <div class="modal fade" id="rejectModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">İzin Talebini Reddet</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="rejectForm" method="post">
+                    <div class="modal-body">
+                        <input type="hidden" id="rejectLeaveId" name="id" />
+                        <div class="mb-3">
+                            <label for="rejectNote" class="form-label">Red Sebebi *</label>
+                            <textarea class="form-control" id="rejectNote" name="approvalNote" rows="3" required
+                                  placeholder="Lütfen reddetme sebebinizi açıklayın..."></textarea>
                         </div>
                     </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-danger">Reddet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Revizyon Modal -->
+    <div class="modal fade" id="revisionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Revizyon İste</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="revisionForm" method="post">
+                    <div class="modal-body">
+                        <input type="hidden" id="revisionLeaveId" name="id" />
+                        <div class="mb-3">
+                            <label for="revisionNote" class="form-label">Revizyon Notu *</label>
+                            <textarea class="form-control" id="revisionNote" name="approvalNote" rows="3" required
+                                  placeholder="Hangi değişikliklerin yapılması gerektiğini belirtiniz..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-warning">Revizyon İste</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<script>
+    // SADECE YETKİLİLER İÇİN JAVASCRIPT FONKSİYONLARI
+    @if (canApprove)
+    {
+            <text>
+            function approveLeave(id) {
+                if (confirm('Bu izin talebini onaylamak istediğinizden emin misiniz?')) {
+                    var form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '@Url.Action("Approve", "LeaveRequests")';
+
+                    var idInput = document.createElement('input');
+                    idInput.type = 'hidden';
+                    idInput.name = 'id';
+                    idInput.value = id;
+                    form.appendChild(idInput);
+
+                    var tokenInput = document.createElement('input');
+                    tokenInput.type = 'hidden';
+                    tokenInput.name = '__RequestVerificationToken';
+                    tokenInput.value = document.querySelector('input[name="__RequestVerificationToken"]').value;
+                    form.appendChild(tokenInput);
+
+                    document.body.appendChild(form);
+                    form.submit();
                 }
-            </div>
-        </div>
-    </div>
-</div>
+            }
 
-<!-- Onay Modal -->
-<div class="modal fade" id="approveModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">İzin Talebini Onayla</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form asp-action="Approve" method="post">
-                <input type="hidden" name="id" value="@Model.Id" />
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        <strong>@Model.Intern.FullName</strong> adlı stajyerin izin talebini onaylamak istediğinizden emin misiniz?
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Onay Notu (Opsiyonel):</label>
-                        <textarea name="approvalNote" class="form-control" rows="3"
-                                  placeholder="Onay ile ilgili not ekleyebilirsiniz..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
-                    <button type="submit" class="btn btn-success">Onayla</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+            function showRejectModal(id) {
+                document.getElementById('rejectLeaveId').value = id;
+                document.getElementById('rejectForm').action = '@Url.Action("Reject", "LeaveRequests")';
+                new bootstrap.Modal(document.getElementById('rejectModal')).show();
+            }
 
-<!-- Red Modal -->
-<div class="modal fade" id="rejectModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">İzin Talebini Reddet</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form asp-action="Reject" method="post">
-                <input type="hidden" name="id" value="@Model.Id" />
-                <div class="modal-body">
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <strong>@Model.Intern.FullName</strong> adlı stajyerin izin talebini reddetmek istediğinizden emin misiniz?
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Red Nedeni <span class="text-danger">*</span></label>
-                        <textarea name="rejectionReason" class="form-control" rows="3"
-                                  placeholder="İzin talebinin red nedenini açıklayın..." required></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
-                    <button type="submit" class="btn btn-danger">Reddet</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-@section Scripts {
-    <script>
-        function showApproveModal() {
-            new bootstrap.Modal(document.getElementById('approveModal')).show();
-        }
-
-        function showRejectModal() {
-            new bootstrap.Modal(document.getElementById('rejectModal')).show();
-        }
-    </script>
-}
-
-@{
-    Html.AntiForgeryToken();
-}
+            function showRevisionModal(id) {
+                document.getElementById('revisionLeaveId').value = id;
+                document.getElementById('revisionForm').action = '@Url.Action("RequestRevision", "LeaveRequests")';
+                new bootstrap.Modal(document.getElementById('revisionModal')).show();
+            }
+            </text>
+    }
+</script>

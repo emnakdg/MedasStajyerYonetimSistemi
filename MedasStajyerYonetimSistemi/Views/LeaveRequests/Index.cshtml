@@ -1,23 +1,32 @@
 ﻿@model IEnumerable<MedasStajyerYonetimSistemi.Models.LeaveRequest>
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
 
 @{
     ViewData["Title"] = "İzin Talepleri";
+    var currentUser = await UserManager.GetUserAsync(User);
+    var userRoles = await UserManager.GetRolesAsync(currentUser);
+    bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
+    bool canExport = userRoles.Any(r => r == "Admin" || r == "HR");
+    bool isIntern = userRoles.Contains("Intern");
 }
-<div class="container-fluid">
+
 <div class="row">
     <div class="col-12">
-         <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title mb-0">İzin Formu</h3>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>İzin Talepleri</h2>
             <div>
+                @if (canExport)
+                {
+                    <a asp-action="ExportToExcel" class="btn btn-success me-2">
+                        <i class="fas fa-file-excel"></i> Excel'e Aktar
+                    </a>
+                }
                 <a asp-action="Create" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Yeni İzin Talebi
                 </a>
-                <a asp-action="ExportToExcel" class="btn btn-success">
-                    <i class="fas fa-download"></i> Dışa Aktar
-                </a>
             </div>
         </div>
-
 
         @if (TempData["SuccessMessage"] != null)
         {
@@ -39,133 +48,91 @@
         <div class="card mb-3">
             <div class="card-body">
                 <form method="get" class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Durum</label>
+                    <div class="col-md-3">
+                        <label class="form-label">Durum Filtresi</label>
                         <select name="status" class="form-select">
-                            @foreach (var option in ViewBag.StatusOptions as List<SelectListItem>)
-                            {
-                                <option value="@option.Value" selected="@(option.Value == ViewBag.CurrentStatus)">
-                                    @option.Text
-                                </option>
-                            }
+                            <option value="All" selected="@(ViewBag.CurrentStatus == "All")">Tümü</option>
+                            <option value="Pending" selected="@(ViewBag.CurrentStatus == "Pending")">Beklemede</option>
+                            <option value="Approved" selected="@(ViewBag.CurrentStatus == "Approved")">Onaylandı</option>
+                            <option value="Rejected" selected="@(ViewBag.CurrentStatus == "Rejected")">Reddedildi</option>
+                            <option value="NeedsRevision" selected="@(ViewBag.CurrentStatus == "NeedsRevision")">Revizyon Gerekiyor</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-2">
                         <label class="form-label">&nbsp;</label>
-                        <div>
-                            <button type="submit" class="btn btn-outline-primary">
-                                <i class="fas fa-filter"></i> Filtrele
-                            </button>
-                            <a asp-action="Index" class="btn btn-outline-secondary">
-                                <i class="fas fa-times"></i> Temizle
-                            </a>
-                        </div>
+                        <button type="submit" class="btn btn-primary d-block">
+                            <i class="fas fa-filter"></i> Filtrele
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
-        <!-- İstatistikler -->
-        <div class="row mb-3">
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title text-warning">Beklemede</h5>
-                        <h3 class="text-warning">@Model.Count(x => x.Status == ApprovalStatus.Pending)</h3>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title text-success">Onaylandı</h5>
-                        <h3 class="text-success">@Model.Count(x => x.Status == ApprovalStatus.Approved)</h3>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title text-danger">Reddedildi</h5>
-                        <h3 class="text-danger">@Model.Count(x => x.Status == ApprovalStatus.Rejected)</h3>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center">
-                    <div class="card-body">
-                        <h5 class="card-title">Toplam</h5>
-                        <h3>@ViewBag.TotalCount</h3>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- İzin Talepleri Tablosu -->
+        <!-- Tablo -->
         <div class="card">
             <div class="card-body">
-                @if (Model.Any())
-                {
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Stajyer</th>
-                                    <th>İzin Türü</th>
-                                    <th>Tarih Aralığı</th>
-                                    <th>Süre</th>
-                                    <th>Durum</th>
-                                    <th>Talep Tarihi</th>
-                                    <th>İşlemler</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Stajyer</th>
+                                @if (!isIntern)
+                                {
+                                    <th>Departman</th>
+                                }
+                                <th>İzin Türü</th>
+                                <th>Çıkış Tarihi</th>
+                                <th>Dönüş Tarihi</th>
+                                <th>Süre</th>
+                                <th>Durum</th>
+                                <th>Talep Tarihi</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Any())
+                            {
                                 @foreach (var item in Model)
                                 {
                                     <tr>
+                                        <td>@item.Intern.FullName</td>
+                                        @if (!isIntern)
+                                        {
+                                            <td>@item.Intern.Department</td>
+                                        }
                                         <td>
-                                            <strong>@item.Intern.FullName</strong><br>
-                                            <small class="text-muted">@item.Intern.Department</small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-info">
+                                            <span class="badge bg-primary">
                                                 @switch (item.LeaveType)
                                                 {
                                                     case LeaveType.PersonalLeave:
                                                         @("Özel İzin")
                                                         break;
-                                                    case LeaveType.ExamLeave:
-
-                                                        @("Sınav İzni")
-                                                        break;
                                                     case LeaveType.HealthLeave:
-
                                                         @("Sağlık İzni")
                                                         break;
+                                                    case LeaveType.ExamLeave:
+                                                        @("Sınav İzni")
+                                                        break;
                                                     case LeaveType.ExcuseLeave:
-
                                                         @("Mazeret İzni")
                                                         break;
                                                     case LeaveType.UnpaidLeave:
-
                                                         @("Ücretsiz İzin")
-                                                        break;
-                                                    default:
-
-                                                        @("Bilinmeyen")
                                                         break;
                                                 }
                                             </span>
                                         </td>
+                                        <td>@item.StartDateTime.ToString("dd.MM.yyyy HH:mm")</td>
+                                        <td>@item.EndDateTime.ToString("dd.MM.yyyy HH:mm")</td>
                                         <td>
-                                            <small>
-                                                <strong>Çıkış:</strong> @item.StartDateTime.ToString("dd.MM.yyyy HH:mm")<br>
-                                                <strong>Dönüş:</strong> @item.EndDateTime.ToString("dd.MM.yyyy HH:mm")
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-secondary">@item.TotalDays gün</span><br>
-                                            <small class="text-muted">@item.TotalHours.ToString("F1") saat</small>
+                                            @if (item.TotalDays > 0)
+                                            {
+                                                <span>@item.TotalDays gün</span>
+                                            }
+                                            else
+                                            {
+                                                <span>@item.TotalHours.ToString("F1") saat</span>
+                                            }
                                         </td>
                                         <td>
                                             @switch (item.Status)
@@ -178,7 +145,6 @@
                                                     @if (!string.IsNullOrEmpty(item.ApproverName))
                                                     {
                                                         <br>
-                                    
                                                         <small class="text-muted">@item.ApproverName</small>
                                                     }
                                                     break;
@@ -187,30 +153,47 @@
                                                     @if (!string.IsNullOrEmpty(item.ApproverName))
                                                     {
                                                         <br>
-                                    
+                                                        <small class="text-muted">@item.ApproverName</small>
+                                                    }
+                                                    break;
+                                                case ApprovalStatus.Revision:
+                                                    <span class="badge bg-info">Revizyon</span>
+                                                    @if (!string.IsNullOrEmpty(item.ApproverName))
+                                                    {
+                                                        <br>
                                                         <small class="text-muted">@item.ApproverName</small>
                                                     }
                                                     break;
                                             }
                                         </td>
-                                        <td>
-                                            @item.CreatedDate.ToString("dd.MM.yyyy HH:mm")
-                                        </td>
+                                        <td>@item.CreatedDate.ToString("dd.MM.yyyy HH:mm")</td>
                                         <td>
                                             <div class="btn-group" role="group">
+                                                <!-- Herkes Detay Görebilir -->
                                                 <a asp-action="Details" asp-route-id="@item.Id"
                                                    class="btn btn-sm btn-outline-primary" title="Detaylar">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                @if (item.Status == ApprovalStatus.Pending)
+
+                                                <!-- Stajyer Sadece Beklemedeki Kendi Taleplerini Düzenleyebilir -->
+                                                @if (isIntern && item.Status == ApprovalStatus.Pending && item.Intern.Email == currentUser.Email)
                                                 {
                                                     <a asp-action="Edit" asp-route-id="@item.Id"
                                                        class="btn btn-sm btn-outline-warning" title="Düzenle">
                                                         <i class="fas fa-edit"></i>
                                                     </a>
+                                                }
+
+                                                <!-- SADECE YETKİLİLER ONAYLAMA/REDDETME YAPABİLİR -->
+                                                @if (canApprove && (item.Status == ApprovalStatus.Pending || item.Status == ApprovalStatus.Revision))
+                                                {
                                                     <button type="button" class="btn btn-sm btn-outline-success"
                                                             onclick="approveLeave(@item.Id)" title="Onayla">
                                                         <i class="fas fa-check"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-warning"
+                                                            onclick="showRevisionModal(@item.Id)" title="Revizyon İste">
+                                                        <i class="fas fa-edit"></i>
                                                     </button>
                                                     <button type="button" class="btn btn-sm btn-outline-danger"
                                                             onclick="showRejectModal(@item.Id)" title="Reddet">
@@ -221,100 +204,135 @@
                                         </td>
                                     </tr>
                                 }
-                            </tbody>
-                        </table>
-                    </div>
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="@(isIntern ? "8" : "9")" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                                        <br>
+                                        Henüz izin talebi bulunmuyor.
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
 
-                    <!-- Pagination -->
-                    @if (ViewBag.TotalPages > 1)
-                    {
-                        <nav class="mt-3">
-                            <ul class="pagination justify-content-center">
-                                @for (int i = 1; i <= ViewBag.TotalPages; i++)
-                                {
-                                    <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                        <a class="page-link" asp-action="Index"
-                                           asp-route-page="@i" asp-route-status="@ViewBag.CurrentStatus">@i</a>
-                                    </li>
-                                }
-                            </ul>
-                        </nav>
-                    }
-                }
-                else
+                <!-- Pagination -->
+                @if (ViewBag.TotalPages > 1)
                 {
-                    <div class="text-center py-5">
-                        <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
-                        <h5 class="text-muted">Henüz izin talebi bulunmamaktadır.</h5>
-                        <a asp-action="Create" class="btn btn-primary mt-2">
-                            <i class="fas fa-plus"></i> İlk İzin Talebini Oluştur
-                        </a>
-                    </div>
+                    <nav class="mt-3">
+                        <ul class="pagination justify-content-center">
+                            @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                            {
+                                <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                    <a class="page-link" asp-route-page="@i" asp-route-status="@ViewBag.CurrentStatus">@i</a>
+                                </li>
+                            }
+                        </ul>
+                    </nav>
                 }
             </div>
         </div>
     </div>
 </div>
 
-<!-- Red Modal -->
-<div class="modal fade" id="rejectModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">İzin Talebini Reddet</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form id="rejectForm" method="post">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Red Nedeni <span class="text-danger">*</span></label>
-                        <textarea name="rejectionReason" class="form-control" rows="3"
-                                  placeholder="İzin talebinin red nedenini açıklayın..." required></textarea>
+<!-- MODAL'LAR - SADECE YETKİLİLER İÇİN -->
+@if (canApprove)
+{
+    <!-- Reddetme Modal -->
+    <div class="modal fade" id="rejectModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">İzin Talebini Reddet</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="rejectForm" method="post">
+                    <div class="modal-body">
+                        <input type="hidden" id="rejectLeaveId" name="id" />
+                        <div class="mb-3">
+                            <label for="rejectNote" class="form-label">Red Sebebi *</label>
+                            <textarea class="form-control" id="rejectNote" name="approvalNote" rows="3" required
+                                  placeholder="Lütfen reddetme sebebinizi açıklayın..."></textarea>
+                        </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
-                    <button type="submit" class="btn btn-danger">Reddet</button>
-                </div>
-            </form>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-danger">Reddet</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</div>
-</div>
 
-@section Scripts {
-    <script>
-        function approveLeave(id) {
-            if (confirm('Bu izin talebini onaylamak istediğinizden emin misiniz?')) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = '@Url.Action("Approve")';
-
-                const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
-                const tokenInput = document.createElement('input');
-                tokenInput.type = 'hidden';
-                tokenInput.name = '__RequestVerificationToken';
-                tokenInput.value = token;
-
-                const idInput = document.createElement('input');
-                idInput.type = 'hidden';
-                idInput.name = 'id';
-                idInput.value = id;
-
-                form.appendChild(tokenInput);
-                form.appendChild(idInput);
-                document.body.appendChild(form);
-                form.submit();
-            }
-        }
-
-        function showRejectModal(id) {
-            document.getElementById('rejectForm').action = '@Url.Action("Reject")/' + id;
-            new bootstrap.Modal(document.getElementById('rejectModal')).show();
-        }
-    </script>
+    <!-- Revizyon Modal -->
+    <div class="modal fade" id="revisionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Revizyon İste</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="revisionForm" method="post">
+                    <div class="modal-body">
+                        <input type="hidden" id="revisionLeaveId" name="id" />
+                        <div class="mb-3">
+                            <label for="revisionNote" class="form-label">Revizyon Notu *</label>
+                            <textarea class="form-control" id="revisionNote" name="approvalNote" rows="3" required
+                                  placeholder="Hangi değişikliklerin yapılması gerektiğini belirtiniz..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-warning">Revizyon İste</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 }
 
-@{
-    Html.AntiForgeryToken();
+@section Scripts {
+    <!-- SADECE YETKİLİLER İÇİN JAVASCRIPT FONKSİYONLARI -->
+    @if (canApprove)
+    {
+        <script>
+            function approveLeave(id) {
+                if (confirm('Bu izin talebini onaylamak istediğinizden emin misiniz?')) {
+                    var form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '@Url.Action("Approve", "LeaveRequests")';
+
+                    var idInput = document.createElement('input');
+                    idInput.type = 'hidden';
+                    idInput.name = 'id';
+                    idInput.value = id;
+                    form.appendChild(idInput);
+
+                    var tokenInput = document.createElement('input');
+                    tokenInput.type = 'hidden';
+                    tokenInput.name = '__RequestVerificationToken';
+                    tokenInput.value = '@Html.AntiForgeryToken().ToString().Replace("<input name=\"__RequestVerificationToken\" type=\"hidden\" value=\"", "").Replace("\" />", "")';
+                    form.appendChild(tokenInput);
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            }
+
+            function showRejectModal(id) {
+                document.getElementById('rejectLeaveId').value = id;
+                document.getElementById('rejectForm').action = '@Url.Action("Reject", "LeaveRequests")';
+                new bootstrap.Modal(document.getElementById('rejectModal')).show();
+            }
+
+            function showRevisionModal(id) {
+                document.getElementById('revisionLeaveId').value = id;
+                document.getElementById('revisionForm').action = '@Url.Action("RequestRevision", "LeaveRequests")';
+                new bootstrap.Modal(document.getElementById('revisionModal')).show();
+            }
+        </script>
+    }
 }

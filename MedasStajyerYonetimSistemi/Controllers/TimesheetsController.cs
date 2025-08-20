@@ -39,7 +39,15 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 query = query.Where(t => t.Intern.Email == currentUser.Email);
             }
 
-            // Durum filtresi
+            // İSTATİSTİKLER İÇİN TOPLAM SAYILAR (filtresiz)
+            var allTimesheets = query.ToList(); // Tüm data'yı al
+            ViewBag.TotalCount = allTimesheets.Count();
+            ViewBag.PendingCount = allTimesheets.Count(t => t.Status == ApprovalStatus.Pending);
+            ViewBag.ApprovedCount = allTimesheets.Count(t => t.Status == ApprovalStatus.Approved);
+            ViewBag.RejectedCount = allTimesheets.Count(t => t.Status == ApprovalStatus.Rejected);
+            ViewBag.RevisionCount = allTimesheets.Count(t => t.Status == ApprovalStatus.Revision);
+
+            // Durum filtresi (sayfa gösterimi için)
             if (status != "All" && Enum.TryParse<ApprovalStatus>(status, out var statusEnum))
             {
                 query = query.Where(t => t.Status == statusEnum);
@@ -58,20 +66,19 @@ namespace MedasStajyerYonetimSistemi.Controllers
             ViewBag.CurrentStatus = status;
             ViewBag.CurrentPage = page;
             ViewBag.TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-            ViewBag.TotalCount = totalCount;
 
             // Listeleme için durum seçenekleri
             ViewBag.StatusOptions = new List<SelectListItem>
-            {
-                new() { Value = "All", Text = "Tümü" },
-                new() { Value = "Pending", Text = "Beklemede" },
-                new() { Value = "Approved", Text = "Onaylandı" },
-                new() { Value = "Rejected", Text = "Reddedildi" },
-                new() { Value = "Revision", Text = "Revize" }
-            };
+    {
+        new() { Value = "All", Text = "Tümü" },
+        new() { Value = "Pending", Text = "Beklemede" },
+        new() { Value = "Approved", Text = "Onaylandı" },
+        new() { Value = "Rejected", Text = "Reddedildi" },
+        new() { Value = "Revision", Text = "Revize" }
+    };
 
             ViewBag.IsIntern = userRoles.Contains("Intern");
-            ViewBag.CanApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
+            ViewBag.CanApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
 
             return View(timesheets);
         }
@@ -206,8 +213,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(timesheet);
         }
 
-        // GET: Timesheets/Edit - Puantaj Düzenle
-        // Sadece beklemede olanlar düzenlenebilir
+        // GET: Timesheets/Edit - Puantaj Düzenleme (Stajyer + Yetkili roller)
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
@@ -217,29 +223,33 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             var timesheet = await _context.Timesheets
                 .Include(t => t.Intern)
-                .Include(t => t.TimesheetDetails.OrderBy(td => td.WorkDate))
+                .Include(t => t.TimesheetDetails)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             if (timesheet == null) return NotFound();
 
-            if (timesheet.Status != ApprovalStatus.Pending)
+            // Yetki kontrolü
+            bool canEdit = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri") ||
+                           (userRoles.Contains("Intern") && timesheet.Intern.Email == currentUser.Email);
+
+            if (!canEdit)
             {
-                TempData["ErrorMessage"] = "Sadece beklemede olan puantajlar düzenlenebilir.";
-                return RedirectToAction(nameof(Details), new { id });
+                TempData["ErrorMessage"] = "Bu puantajı düzenleme yetkiniz bulunmuyor.";
+                return RedirectToAction(nameof(Index));
             }
 
-            // Eğer stajyer ise sadece kendi puantajını düzenleyebilir
-            if (userRoles.Contains("Intern") && timesheet.Intern.Email != currentUser.Email)
+            // Sadece beklemede veya revizyon durumundaki puantajlar düzenlenebilir
+            if (timesheet.Status != ApprovalStatus.Pending && timesheet.Status != ApprovalStatus.Revision)
             {
-                TempData["ErrorMessage"] = "Bu puantaj kaydını düzenleme yetkiniz bulunmamaktadır.";
-                return RedirectToAction(nameof(Index));
+                TempData["ErrorMessage"] = "Sadece beklemede veya revizyon durumundaki puantajlar düzenlenebilir.";
+                return RedirectToAction(nameof(Details), new { id });
             }
 
             await PopulateDropDowns(timesheet.InternId);
             return View(timesheet);
         }
 
-        // POST: Timesheets/Edit - Puantaj Güncelle
+        // POST: Timesheets/Edit - Puantaj Güncelleme
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, Timesheet timesheet)
@@ -249,6 +259,23 @@ namespace MedasStajyerYonetimSistemi.Controllers
             var currentUser = await _userManager.GetUserAsync(User);
             var userRoles = await _userManager.GetRolesAsync(currentUser);
 
+            // Yetki kontrolü
+            var existingTimesheet = await _context.Timesheets
+                .Include(t => t.Intern)
+                .FirstOrDefaultAsync(t => t.Id == id);
+
+            if (existingTimesheet == null) return NotFound();
+
+            bool canEdit = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri") ||
+                           (userRoles.Contains("Intern") && existingTimesheet.Intern.Email == currentUser.Email);
+
+            if (!canEdit)
+            {
+                TempData["ErrorMessage"] = "Bu puantajı düzenleme yetkiniz bulunmuyor.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Navigation property hatalarını temizle
             ModelState.Remove("Intern");
             ModelState.Remove("Approver");
             ModelState.Remove("TimesheetDetails");
@@ -258,27 +285,21 @@ namespace MedasStajyerYonetimSistemi.Controllers
             {
                 try
                 {
-                    var existingTimesheet = await _context.Timesheets
-                        .Include(t => t.Intern)
-                        .FirstOrDefaultAsync(t => t.Id == id);
+                    // Sadece belirli alanları güncelle
+                    existingTimesheet.PeriodDate = timesheet.PeriodDate;
+                    existingTimesheet.UpdatedDate = DateTime.Now;
 
-                    if (existingTimesheet == null) return NotFound();
-
-                    if (existingTimesheet.Status != ApprovalStatus.Pending)
+                    // Eğer stajyer düzenliyorsa, durumu beklemede yap
+                    if (userRoles.Contains("Intern") && existingTimesheet.Status == ApprovalStatus.Revision)
                     {
-                        TempData["ErrorMessage"] = "Sadece beklemede olan puantajlar düzenlenebilir.";
-                        return RedirectToAction(nameof(Details), new { id });
+                        existingTimesheet.Status = ApprovalStatus.Pending;
+                        existingTimesheet.ApprovalNote = null;
+                        existingTimesheet.ApprovalDate = null;
+                        existingTimesheet.ApproverId = null;
+                        existingTimesheet.ApproverName = null;
                     }
 
-                    // Eğer stajyer ise sadece kendi puantajını düzenleyebilir
-                    if (userRoles.Contains("Intern") && existingTimesheet.Intern.Email != currentUser.Email)
-                    {
-                        TempData["ErrorMessage"] = "Bu puantaj kaydını düzenleme yetkiniz bulunmamaktadır.";
-                        return RedirectToAction(nameof(Index));
-                    }
-
-                    timesheet.UpdatedDate = DateTime.Now;
-                    _context.Update(timesheet);
+                    _context.Update(existingTimesheet);
                     await _context.SaveChangesAsync();
 
                     TempData["SuccessMessage"] = "Puantaj başarıyla güncellendi.";
@@ -296,15 +317,93 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     }
                 }
             }
-
             await PopulateDropDowns(timesheet.InternId);
             return View(timesheet);
+        }
+
+        // POST: Timesheets/UpdateDetail - Puantaj Detay Güncelleme (AJAX)
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateDetail(int detailId, bool isPresent, string startTime, string endTime,
+            string leaveInfo, decimal leaveHours, string trainingInfo, decimal trainingHours, bool hasMealAllowance,
+            WorkLocation workLocation, string notes)
+        {
+            try
+            {
+                var currentUser = await _userManager.GetUserAsync(User);
+                var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+                var timesheetDetail = await _context.TimesheetDetails
+                    .Include(td => td.Timesheet)
+                    .ThenInclude(t => t.Intern)
+                    .FirstOrDefaultAsync(td => td.Id == detailId);
+
+                if (timesheetDetail == null)
+                {
+                    TempData["ErrorMessage"] = "Puantaj detayı bulunamadı.";
+                    return RedirectToAction("Edit", new { id = timesheetDetail?.TimesheetId });
+                }
+
+                // Yetki kontrolü
+                bool canEdit = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri") ||
+                               (userRoles.Contains("Intern") && timesheetDetail.Timesheet.Intern.Email == currentUser.Email);
+
+                if (!canEdit)
+                {
+                    TempData["ErrorMessage"] = "Bu puantaj detayını düzenleme yetkiniz bulunmuyor.";
+                    return RedirectToAction("Edit", new { id = timesheetDetail.TimesheetId });
+                }
+
+                // Sadece beklemede veya revizyon durumundaki puantajlar düzenlenebilir
+                if (timesheetDetail.Timesheet.Status != ApprovalStatus.Pending && timesheetDetail.Timesheet.Status != ApprovalStatus.Revision)
+                {
+                    TempData["ErrorMessage"] = "Sadece beklemede veya revizyon durumundaki puantajlar düzenlenebilir.";
+                    return RedirectToAction("Edit", new { id = timesheetDetail.TimesheetId });
+                }
+
+                // Detay güncelleme
+                timesheetDetail.IsPresent = isPresent;
+                timesheetDetail.WorkLocation = workLocation;
+                timesheetDetail.LeaveInfo = leaveInfo ?? "";
+                timesheetDetail.LeaveHours = leaveHours;
+                timesheetDetail.TrainingInfo = trainingInfo ?? "";
+                timesheetDetail.TrainingHours = trainingHours;
+                timesheetDetail.HasMealAllowance = hasMealAllowance;
+                timesheetDetail.Notes = notes ?? "";
+
+                // Saat alanları sadece devam varsa doldurulsun
+                if (isPresent)
+                {
+                    if (TimeSpan.TryParse(startTime, out var parsedStartTime))
+                        timesheetDetail.StartTime = parsedStartTime;
+                    if (TimeSpan.TryParse(endTime, out var parsedEndTime))
+                        timesheetDetail.EndTime = parsedEndTime;
+                }
+                else
+                {
+                    timesheetDetail.StartTime = null;
+                    timesheetDetail.EndTime = null;
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Puantaj toplamlarını yeniden hesapla
+                await RecalculateTimesheetTotals(timesheetDetail.TimesheetId);
+
+                TempData["SuccessMessage"] = "Puantaj detayı başarıyla güncellendi.";
+                return RedirectToAction("Edit", new { id = timesheetDetail.TimesheetId });
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = "Güncelleme sırasında hata oluştu.";
+                return RedirectToAction("Index");
+            }
         }
 
         // POST: Timesheets/Approve - Puantaj Onaylama (Sadece yetkili roller)
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,HR,Supervisor")]
+        [Authorize(Roles = "Admin,HR,Supervisor,PersonelIsleri")]
         public async Task<IActionResult> Approve(int id, string? approvalNote = null)
         {
             var timesheet = await _context.Timesheets
@@ -332,15 +431,21 @@ namespace MedasStajyerYonetimSistemi.Controllers
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"{timesheet.Intern.FullName} adlı stajyerin puantajı onaylandı.";
-            return RedirectToAction(nameof(Details), new { id });
+            return RedirectToAction(nameof(Index));
         }
 
         // POST: Timesheets/Reject - Puantaj Reddetme (Sadece yetkili roller)
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,HR,Supervisor")]
-        public async Task<IActionResult> Reject(int id, string rejectionReason)
+        [Authorize(Roles = "Admin,HR,Supervisor,PersonelIsleri")]
+        public async Task<IActionResult> Reject(int id, string approvalNote)
         {
+            if (string.IsNullOrWhiteSpace(approvalNote))
+            {
+                TempData["ErrorMessage"] = "Red sebebi belirtilmelidir.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
             var timesheet = await _context.Timesheets
                 .Include(t => t.Intern)
                 .FirstOrDefaultAsync(t => t.Id == id);
@@ -353,26 +458,60 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 return RedirectToAction(nameof(Details), new { id });
             }
 
-            if (string.IsNullOrWhiteSpace(rejectionReason))
-            {
-                TempData["ErrorMessage"] = "Red nedeni belirtilmelidir.";
-                return RedirectToAction(nameof(Details), new { id });
-            }
-
             var currentUser = await _userManager.GetUserAsync(User);
 
             timesheet.Status = ApprovalStatus.Rejected;
             timesheet.ApproverId = currentUser?.Id;
             timesheet.ApproverName = currentUser?.FullName ?? currentUser?.UserName;
             timesheet.ApprovalDate = DateTime.Now;
-            timesheet.ApprovalNote = rejectionReason;
+            timesheet.ApprovalNote = approvalNote;
             timesheet.UpdatedDate = DateTime.Now;
 
             _context.Update(timesheet);
             await _context.SaveChangesAsync();
 
             TempData["SuccessMessage"] = $"{timesheet.Intern.FullName} adlı stajyerin puantajı reddedildi.";
-            return RedirectToAction(nameof(Details), new { id });
+            return RedirectToAction(nameof(Index));
+        }
+
+        // POST: Timesheets/RequestRevision - Puantaj Revizyon İsteme (Sadece yetkili roller)
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Admin,HR,Supervisor,PersonelIsleri")]
+        public async Task<IActionResult> RequestRevision(int id, string approvalNote)
+        {
+            if (string.IsNullOrWhiteSpace(approvalNote))
+            {
+                TempData["ErrorMessage"] = "Revizyon notu belirtilmelidir.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            var timesheet = await _context.Timesheets
+                .Include(t => t.Intern)
+                .FirstOrDefaultAsync(t => t.Id == id);
+
+            if (timesheet == null) return NotFound();
+
+            if (timesheet.Status != ApprovalStatus.Pending)
+            {
+                TempData["ErrorMessage"] = "Sadece beklemede olan puantajlar için revizyon istenebilir.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            var currentUser = await _userManager.GetUserAsync(User);
+
+            timesheet.Status = ApprovalStatus.Revision;
+            timesheet.ApproverId = currentUser?.Id;
+            timesheet.ApproverName = currentUser?.FullName ?? currentUser?.UserName;
+            timesheet.ApprovalDate = DateTime.Now;
+            timesheet.ApprovalNote = approvalNote;
+            timesheet.UpdatedDate = DateTime.Now;
+
+            _context.Update(timesheet);
+            await _context.SaveChangesAsync();
+
+            TempData["SuccessMessage"] = $"{timesheet.Intern.FullName} adlı stajyerin puantajı için revizyon istendi.";
+            return RedirectToAction(nameof(Index));
         }
 
         // GET: Timesheets/Delete - Puantaj Sil (Sadece Admin ve kendi puantajı)
@@ -571,6 +710,24 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
+        // Helper method: Puantaj toplamlarını yeniden hesapla
+        private async Task RecalculateTimesheetTotals(int timesheetId)
+        {
+            var timesheet = await _context.Timesheets
+                .Include(t => t.TimesheetDetails)
+                .FirstOrDefaultAsync(t => t.Id == timesheetId);
+
+            if (timesheet != null)
+            {
+                timesheet.TotalWorkDays = timesheet.TimesheetDetails.Count(td => td.IsPresent);
+                timesheet.TotalLeaveDays = timesheet.TimesheetDetails.Count(td => !td.IsPresent && td.LeaveHours > 0);
+                timesheet.TotalTrainingHours = timesheet.TimesheetDetails.Sum(td => td.TrainingHours);
+                timesheet.UpdatedDate = DateTime.Now;
+
+                await _context.SaveChangesAsync();
+            }
+        }
+
         private async Task CreateMonthlyTimesheetDetails(Timesheet timesheet)
         {
             var startDate = new DateTime(timesheet.PeriodDate.Year, timesheet.PeriodDate.Month, 1);
@@ -587,12 +744,13 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     DayNumber = date.Day,
                     DayName = GetTurkishDayName(date.DayOfWeek),
                     WorkLocation = WorkLocation.HeadOffice,
-                    IsPresent = date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday,
-                    StartTime = date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday ?
-                        new TimeSpan(8, 30, 0) : null,
-                    EndTime = date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday ?
-                        new TimeSpan(17, 30, 0) : null,
-                    HasMealAllowance = date.DayOfWeek != DayOfWeek.Saturday && date.DayOfWeek != DayOfWeek.Sunday,
+
+                    // TÜM GÜNLER BAŞLANGIÇTA İŞARETSİZ OLSUN
+                    IsPresent = false,
+                    StartTime = null,
+                    EndTime = null,
+                    HasMealAllowance = false,
+
                     LeaveHours = 0,
                     LeaveInfo = "",
                     TrainingHours = 0,
@@ -604,6 +762,11 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
 
             timesheet.TimesheetDetails = details;
+
+            // Başlangıçta tüm sayıları sıfır yap
+            timesheet.TotalWorkDays = 0;
+            timesheet.TotalLeaveDays = 0;
+            timesheet.TotalTrainingHours = 0;
         }
 
         private string GetTurkishDayName(DayOfWeek dayOfWeek)
