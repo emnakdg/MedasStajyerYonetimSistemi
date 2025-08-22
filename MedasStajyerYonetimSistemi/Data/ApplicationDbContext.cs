@@ -68,7 +68,7 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.HasOne(e => e.ResponsibleUser)
                       .WithMany()
                       .HasForeignKey(e => e.ResponsiblePersonId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: SetNull yerine NoAction
 
                 // Index'ler
                 entity.HasIndex(e => e.Email);
@@ -95,9 +95,9 @@ namespace MedasStajyerYonetimSistemi.Data
                       .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasOne(e => e.Approver)
-                      .WithMany(e => e.ApprovedLeaveRequests)
+                      .WithMany() // DÜZELTME: Navigation property kaldırıldı
                       .HasForeignKey(e => e.ApproverId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: SetNull yerine NoAction
 
                 // Index'ler
                 entity.HasIndex(e => e.Status);
@@ -107,7 +107,7 @@ namespace MedasStajyerYonetimSistemi.Data
             });
 
             // ============================================================================
-            // Timesheet (Puantaj) Konfigürasyonu
+            // Timesheet (Puantaj) Konfigürasyonu - DÜZELTİLDİ
             // ============================================================================
             builder.Entity<Timesheet>(entity =>
             {
@@ -116,16 +116,27 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.Property(e => e.ApprovalNote).HasMaxLength(500);
                 entity.Property(e => e.TotalTrainingHours).HasColumnType("decimal(6,2)");
 
+                // YENİ SUPERVISOR ALANLARI
+                entity.Property(e => e.SupervisorName).HasMaxLength(100);
+                entity.Property(e => e.SupervisorNote).HasMaxLength(500);
+
                 // Foreign Keys
                 entity.HasOne(e => e.Intern)
                       .WithMany(e => e.Timesheets)
                       .HasForeignKey(e => e.InternId)
                       .OnDelete(DeleteBehavior.Cascade);
 
+                // Final Approver (İK) ilişkisi
                 entity.HasOne(e => e.Approver)
-                      .WithMany(e => e.ApprovedTimesheets)
+                      .WithMany() // DÜZELTME: Navigation property kaldırıldı
                       .HasForeignKey(e => e.ApproverId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: Cascade conflict önlendi
+
+                // Supervisor ilişkisi
+                entity.HasOne(e => e.Supervisor)
+                      .WithMany() // Navigation property yok
+                      .HasForeignKey(e => e.SupervisorId)
+                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: Cascade conflict önlendi
 
                 // Index'ler
                 entity.HasIndex(e => e.Status);
@@ -178,7 +189,7 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.HasOne(e => e.Approver)
                       .WithMany()
                       .HasForeignKey(e => e.ApproverId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: SetNull yerine NoAction
 
                 // Index'ler
                 entity.HasIndex(e => e.ReferenceType);
@@ -192,7 +203,7 @@ namespace MedasStajyerYonetimSistemi.Data
             builder.Entity<SystemLog>(entity =>
             {
                 entity.HasKey(e => e.Id);
-                entity.Property(e => e.UserId).HasMaxLength(450); // 100 yerine 450
+                entity.Property(e => e.UserId).HasMaxLength(450);
                 entity.Property(e => e.UserName).HasMaxLength(100);
                 entity.Property(e => e.Action).HasMaxLength(200);
                 entity.Property(e => e.TableName).HasMaxLength(100);
@@ -202,14 +213,13 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.HasOne(e => e.User)
                       .WithMany()
                       .HasForeignKey(e => e.UserId)
-                      .OnDelete(DeleteBehavior.SetNull);
+                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: SetNull yerine NoAction
 
                 // Index'ler
                 entity.HasIndex(e => e.ActionDate);
                 entity.HasIndex(e => e.TableName);
                 entity.HasIndex(e => e.Action);
             });
-
 
             // ============================================================================
             // EmailNotification (Email Bildirimleri) Konfigürasyonu

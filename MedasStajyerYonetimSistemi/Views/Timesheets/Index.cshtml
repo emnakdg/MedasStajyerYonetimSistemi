@@ -7,7 +7,7 @@
     var currentUser = await UserManager.GetUserAsync(User);
     var userRoles = await UserManager.GetRolesAsync(currentUser);
     bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
-    bool canExport = userRoles.Any(r => r == "Admin" || r == "HR");
+    bool canExport = userRoles.Any(r => r == "Admin" || r == "HR" || r == "PersonelIsleri");
     bool isIntern = userRoles.Contains("Intern");
 }
 
@@ -178,6 +178,15 @@
                                                 case ApprovalStatus.Pending:
                                                     <span class="badge bg-warning">Beklemede</span>
                                                     break;
+                                                case ApprovalStatus.SupervisorApproved:
+                                                    <span class="badge bg-info">Supervisor Onaylandı</span>
+                                                    @if (item.Intern.InternshipType == InternshipType.Talentern)
+                                                    {
+                                                        <br>
+                                    
+                                                        <small class="text-muted">İK onayı bekleniyor</small>
+                                                    }
+                                                    break;
                                                 case ApprovalStatus.Approved:
                                                     <span class="badge bg-success">Onaylandı</span>
                                                     @if (!string.IsNullOrEmpty(item.ApproverName))
@@ -197,7 +206,7 @@
                                                     }
                                                     break;
                                                 case ApprovalStatus.Revision:
-                                                    <span class="badge bg-info">Revizyon</span>
+                                                    <span class="badge bg-secondary">Revizyon</span>
                                                     @if (!string.IsNullOrEmpty(item.ApproverName))
                                                     {
                                                         <br>

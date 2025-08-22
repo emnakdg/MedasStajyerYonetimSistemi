@@ -9,7 +9,7 @@
     bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
     bool isIntern = userRoles.Contains("Intern");
 
-    // YENİ: Detaylı yetki kontrolü
+    // Detaylı yetki kontrolü
     bool internCanEditDetails = isIntern && Model.Intern.Email == currentUser.Email;
 
     // Form düzenleme (Edit sayfası) hakları
@@ -25,6 +25,14 @@
 
     // Detay düzenleme hakları (onaylanmış puantajlarda da olabilir)
     bool canEditDetails = canApprove || internCanEditDetails;
+
+    // YENİ: Hangi onay seviyesinde olduğumuzu belirle
+    bool showSupervisorApproval = canApprove && userRoles.Contains("Supervisor") &&
+                                (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision);
+
+    bool showHRApproval = canApprove && userRoles.Any(r => r == "Admin" || r == "HR") &&
+                        Model.Status == ApprovalStatus.SupervisorApproved &&
+                        Model.Intern.InternshipType == InternshipType.Talentern;
 }
 
 <div class="row">
@@ -76,15 +84,25 @@
             </div>
         }
 
-        <!-- YENİ: Durum bilgisi -->
+        <!-- Durum bilgisi -->
         <div class="alert alert-@(Model.Status == ApprovalStatus.Approved ? "success" :
+                                               Model.Status == ApprovalStatus.SupervisorApproved ? "info" :
                                                Model.Status == ApprovalStatus.Pending ? "warning" :
-                                               Model.Status == ApprovalStatus.Revision ? "info" : "danger")">
+                                               Model.Status == ApprovalStatus.Revision ? "secondary" : "danger")">
             <strong>Durum:</strong>
             @switch (Model.Status)
             {
                 case ApprovalStatus.Pending:
                     <span>Beklemede</span>
+                    break;
+                case ApprovalStatus.SupervisorApproved:
+                    <span>Supervisor Onaylandı</span>
+                    @if (Model.Intern.InternshipType == InternshipType.Talentern)
+                    {
+                        <br>
+            
+                        <small>İK onayı bekleniyor</small>
+                    }
                     break;
                 case ApprovalStatus.Approved:
                     <span>Onaylandı</span>
@@ -142,8 +160,29 @@
                             </div>
                             <div class="col-md-6">
                                 <div class="mb-3">
-                                    <label class="form-label fw-bold">Toplam Eğitim Saati:</label>
-                                    <p class="mb-0">@Model.TotalTrainingHours.ToString("F1") saat</p>
+                                    <label class="form-label fw-bold">Staj Türü:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-primary">
+                                            @switch (Model.Intern.InternshipType)
+                                            {
+                                                case InternshipType.Talentern:
+                                                    <text>Talentern</text>
+                                                    break;
+                                                case InternshipType.SummerInternship:
+                                                    <text>Yaz Dönemi Stajı</text>
+                                                    break;
+                                                case InternshipType.KozaProject:
+                                                    <text>Koza Projesi</text>
+                                                    break;
+                                                case InternshipType.HighSchoolInternship:
+                                                    <text>Lise Stajı</text>
+                                                    break;
+                                                default:
+                                                    <text>@Model.Intern.InternshipType.ToString()</text>
+                                                    break;
+                                            }
+                                        </span>
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -167,6 +206,17 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="mb-3">
+                                    <label class="form-label fw-bold">Toplam Eğitim Saati:</label>
+                                    <p class="mb-0">
+                                        <span class="badge bg-info">@Model.TotalTrainingHours.ToString("F1") saat</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
                                     <label class="form-label fw-bold">Manuel Form:</label>
                                     <p class="mb-0">
                                         <span class="badge bg-@(Model.IsManualEntry ? "warning" : "secondary")">
@@ -175,11 +225,12 @@
                                     </p>
                                 </div>
                             </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Oluşturma Tarihi:</label>
-                            <p class="mb-0">@Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold">Oluşturma Tarihi:</label>
+                                    <p class="mb-0">@Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -273,8 +324,8 @@
                                                                     <strong>Süre:</strong>
  
                                                                     @detail.LeaveHours.ToString("F1")
-                                                                    saat  
-                                                                </small >
+                                                                    saat
+                                                                </small>
                                                                                                                     }
                                                             
                                                         </div>
@@ -332,6 +383,15 @@
                                 case ApprovalStatus.Pending:
                                     <span class="badge bg-warning fs-6 p-2">Beklemede</span>
                                     break;
+                                case ApprovalStatus.SupervisorApproved:
+                                    <span class="badge bg-info fs-6 p-2">Supervisor Onaylandı</span>
+                                    @if (Model.Intern.InternshipType == InternshipType.Talentern)
+                                    {
+                                        <br>
+                            
+                                        <small class="text-muted mt-2">İK onayı bekleniyor</small>
+                                    }
+                                    break;
                                 case ApprovalStatus.Approved:
                                     <span class="badge bg-success fs-6 p-2">Onaylandı</span>
                                     break;
@@ -339,15 +399,43 @@
                                     <span class="badge bg-danger fs-6 p-2">Reddedildi</span>
                                     break;
                                 case ApprovalStatus.Revision:
-                                    <span class="badge bg-info fs-6 p-2">Revizyon Gerekiyor</span>
+                                    <span class="badge bg-secondary fs-6 p-2">Revizyon Gerekiyor</span>
                                     break;
                             }
                         </div>
 
+                        <!-- SUPERVISOR ONAY BİLGİLERİ -->
+                        @if (!string.IsNullOrEmpty(Model.SupervisorName))
+                        {
+                            <div class="mb-2">
+                                <label class="form-label fw-bold">Supervisor:</label>
+                                <p class="mb-0">@Model.SupervisorName</p>
+                            </div>
+                        }
+
+                        @if (Model.SupervisorApprovalDate.HasValue)
+                        {
+                            <div class="mb-2">
+                                <label class="form-label fw-bold">Supervisor Onay Tarihi:</label>
+                                <p class="mb-0">@Model.SupervisorApprovalDate.Value.ToString("dd.MM.yyyy HH:mm")</p>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(Model.SupervisorNote))
+                        {
+                            <div class="mb-2">
+                                <label class="form-label fw-bold">Supervisor Notu:</label>
+                                <div class="alert alert-info p-2">
+                                    <small>@Model.SupervisorNote</small>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- FİNAL ONAY BİLGİLERİ -->
                         @if (!string.IsNullOrEmpty(Model.ApproverName))
                         {
                             <div class="mb-2">
-                                <label class="form-label fw-bold">Onaylayan:</label>
+                                <label class="form-label fw-bold">Final Onaylayan:</label>
                                 <p class="mb-0">@Model.ApproverName</p>
                             </div>
                         }
@@ -355,7 +443,7 @@
                         @if (Model.ApprovalDate.HasValue)
                         {
                             <div class="mb-2">
-                                <label class="form-label fw-bold">Onay Tarihi:</label>
+                                <label class="form-label fw-bold">Final Onay Tarihi:</label>
                                 <p class="mb-0">@Model.ApprovalDate.Value.ToString("dd.MM.yyyy HH:mm")</p>
                             </div>
                         }
@@ -363,32 +451,65 @@
                         @if (!string.IsNullOrEmpty(Model.ApprovalNote))
                         {
                             <div class="mb-2">
-                                <label class="form-label fw-bold">Onay Notu:</label>
-                                <div class="alert alert-info p-2">
+                                <label class="form-label fw-bold">Final Onay Notu:</label>
+                                <div class="alert alert-success p-2">
                                     <small>@Model.ApprovalNote</small>
                                 </div>
                             </div>
                         }
 
-                        <!-- ONAYLAMA BUTONLARI - SADECE YETKİLİ ROLLER GÖREBİLİR -->
-                        @if (canApprove && (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision))
+                        <!-- SUPERVISOR ONAYLAMA BUTONLARI -->
+                        @if (showSupervisorApproval)
                         {
                             <hr>
                             <div class="d-grid gap-2">
-                                <!-- ONAYLA BUTONU - Form ile yapılmalı -->
+                                <h6 class="text-center">Supervisor Onayı</h6>
+
                                 <form method="post" asp-action="Approve" asp-controller="Timesheets" class="d-inline">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="id" value="@Model.Id" />
                                     <button type="submit" class="btn btn-success w-100"
-                                            onclick="return confirm('Bu puantajı onaylamak istediğinizden emin misiniz?')">
-                                        <i class="fas fa-check"></i> Onayla
+                                            onclick="return confirm('Bu puantajı supervisor olarak onaylamak istediğinizden emin misiniz?')">
+                                        <i class="fas fa-check"></i>
+                                        @if (Model.Intern.InternshipType == InternshipType.Talentern)
+                                        {
+                                            <text>Onayla (İK'ya Gönder)</text>
+                                        }
+                                        else
+                                        {
+                                            <text>Onayla (Final)</text>
+                                        }
                                     </button>
                                 </form>
 
-                                <!-- REVİZYON VE REDDET BUTONLARI -->
                                 <button type="button" class="btn btn-warning" onclick="showRevisionModal()">
                                     <i class="fas fa-edit"></i> Revizyon İste
                                 </button>
+
+                                <button type="button" class="btn btn-danger" onclick="showRejectModal()">
+                                    <i class="fas fa-times"></i> Reddet
+                                </button>
+                            </div>
+                        }
+
+                        <!-- İK ONAYLAMA BUTONLARI -->
+                        @if (showHRApproval)
+                        {
+                            <hr>
+                            <div class="d-grid gap-2">
+                                <h6 class="text-center">İK Final Onayı</h6>
+                                <div class="alert alert-info p-2 mb-2">
+                                    <small><i class="fas fa-info-circle"></i> Bu puantaj supervisor tarafından onaylanmıştır. Final onayınız bekleniyor.</small>
+                                </div>
+
+                                <form method="post" asp-action="Approve" asp-controller="Timesheets" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@Model.Id" />
+                                    <button type="submit" class="btn btn-success w-100"
+                                            onclick="return confirm('Bu puantaja final onayı vermek istediğinizden emin misiniz?')">
+                                        <i class="fas fa-check-double"></i> Final Onayı Ver
+                                    </button>
+                                </form>
 
                                 <button type="button" class="btn btn-danger" onclick="showRejectModal()">
                                     <i class="fas fa-times"></i> Reddet
@@ -402,7 +523,7 @@
     </div>
 </div>
 
-<!-- MODAL'LAR - SADECE YETKİLİLER İÇİN -->
+<!-- MODAL'LAR -->
 @if (canApprove)
 {
     <!-- Reddetme Modal -->

@@ -270,7 +270,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
         // Excel Export (Sadece HR ve Admin)
-        [Authorize(Roles = "Admin,HR")]
+        [Authorize(Roles = "Admin,HR,PersonelIsleri")]
         public async Task<IActionResult> ExportToExcel(string? searchTerm = null)
         {
             var query = _context.Interns.Where(i => i.IsActive);

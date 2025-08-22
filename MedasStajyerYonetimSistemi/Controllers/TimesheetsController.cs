@@ -184,6 +184,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
                 if (existingTimesheet != null)
                 {
+
                     ModelState.AddModelError("PeriodDate", "Bu stajyer için bu dönemde zaten puantaj kaydı bulunmaktadır.");
                     await PopulateDropDowns(timesheet.InternId);
                     return View(timesheet);
@@ -458,7 +459,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
         [Authorize(Roles = "Admin,HR,Supervisor,PersonelIsleri")]
         public async Task<IActionResult> Approve(int id, string? approvalNote = null)
         {
-            // ID kontrolü
             if (id <= 0)
             {
                 TempData["ErrorMessage"] = "Geçersiz puantaj ID'si.";
@@ -475,13 +475,16 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            if (timesheet.Status != ApprovalStatus.Pending && timesheet.Status != ApprovalStatus.Revision)
+            if (timesheet.Status != ApprovalStatus.Pending &&
+                timesheet.Status != ApprovalStatus.Revision &&
+                timesheet.Status != ApprovalStatus.SupervisorApproved) // YENİ DURUM
             {
-                TempData["ErrorMessage"] = "Sadece beklemede veya revize durumundaki puantajlar onaylanabilir.";
+                TempData["ErrorMessage"] = "Bu puantaj onaylanamaz.";
                 return RedirectToAction(nameof(Details), new { id });
             }
 
             var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
 
             if (currentUser == null)
             {
@@ -491,17 +494,26 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             try
             {
-                timesheet.Status = ApprovalStatus.Approved;
-                timesheet.ApproverId = currentUser.Id;
-                timesheet.ApproverName = currentUser.FullName ?? currentUser.UserName;
-                timesheet.ApprovalDate = DateTime.Now;
-                timesheet.ApprovalNote = approvalNote;
-                timesheet.UpdatedDate = DateTime.Now;
+                // YENİ İŞ AKIŞI: Staj türüne göre onay süreci
+                if (userRoles.Contains("Supervisor"))
+                {
+                    // SUPERVISOR ONAYI
+                    await ApproveBySuperviser(timesheet, currentUser, approvalNote);
+                }
+                else if (userRoles.Any(r => r == "Admin" || r == "HR"))
+                {
+                    // İK ONAYI (sadece Talentern için gerekli)
+                    await ApproveByHR(timesheet, currentUser, approvalNote);
+                }
+                else
+                {
+                    TempData["ErrorMessage"] = "Bu işlemi gerçekleştirme yetkiniz bulunmuyor.";
+                    return RedirectToAction(nameof(Details), new { id });
+                }
 
                 _context.Update(timesheet);
                 await _context.SaveChangesAsync();
 
-                TempData["SuccessMessage"] = $"{timesheet.Intern.FullName} adlı stajyerin puantajı onaylandı.";
                 return RedirectToAction(nameof(Details), new { id });
             }
             catch (Exception ex)
@@ -509,6 +521,56 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 TempData["ErrorMessage"] = "Onaylama işlemi sırasında hata oluştu.";
                 return RedirectToAction(nameof(Details), new { id });
             }
+        }
+
+        // METOD: Supervisor onayı
+        private async Task ApproveBySuperviser(Timesheet timesheet, ApplicationUser currentUser, string? approvalNote)
+        {
+            // Staj türünü kontrol et
+            if (timesheet.Intern.InternshipType == InternshipType.Talentern)
+            {
+                // Talentern ise İK onayına gönder
+                timesheet.Status = ApprovalStatus.SupervisorApproved; // YENİ DURUM
+                timesheet.SupervisorId = currentUser.Id;
+                timesheet.SupervisorName = currentUser.FullName ?? currentUser.UserName;
+                timesheet.SupervisorApprovalDate = DateTime.Now;
+                timesheet.SupervisorNote = approvalNote;
+                timesheet.UpdatedDate = DateTime.Now;
+
+                TempData["SuccessMessage"] = $"{timesheet.Intern.FullName} adlı stajyerin puantajı supervisor tarafından onaylandı. İK onayı bekleniyor.";
+            }
+            else
+            {
+                // Diğer staj türleri direkt onaylanır
+                timesheet.Status = ApprovalStatus.Approved;
+                timesheet.ApproverId = currentUser.Id;
+                timesheet.ApproverName = currentUser.FullName ?? currentUser.UserName;
+                timesheet.ApprovalDate = DateTime.Now;
+                timesheet.ApprovalNote = approvalNote;
+                timesheet.UpdatedDate = DateTime.Now;
+
+                TempData["SuccessMessage"] = $"{timesheet.Intern.FullName} adlı stajyerin puantajı onaylandı.";
+            }
+        }
+
+        // YENİ METOD: İK onayı
+        private async Task ApproveByHR(Timesheet timesheet, ApplicationUser currentUser, string? approvalNote)
+        {
+            if (timesheet.Status != ApprovalStatus.SupervisorApproved)
+            {
+                TempData["ErrorMessage"] = "Bu puantaj henüz supervisor tarafından onaylanmamış.";
+                return;
+            }
+
+            // İK son onayı verir
+            timesheet.Status = ApprovalStatus.Approved;
+            timesheet.ApproverId = currentUser.Id;
+            timesheet.ApproverName = currentUser.FullName ?? currentUser.UserName;
+            timesheet.ApprovalDate = DateTime.Now;
+            timesheet.ApprovalNote = approvalNote;
+            timesheet.UpdatedDate = DateTime.Now;
+
+            TempData["SuccessMessage"] = $"{timesheet.Intern.FullName} adlı stajyerin puantajı İK tarafından final onayı verildi.";
         }
 
         // POST: Timesheets/Reject - Puantaj Reddetme (Sadece yetkili roller)
@@ -676,7 +738,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
         // Puantaj Excel Export (Sadece HR ve Admin)
-        [Authorize(Roles = "Admin,HR")]
+        [Authorize(Roles = "Admin,HR,PersonelIsleri")]
         public async Task<IActionResult> ExportToExcel(string status = "All")
         {
             var query = _context.Timesheets

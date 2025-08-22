@@ -7,7 +7,7 @@
     var currentUser = await UserManager.GetUserAsync(User);
     var userRoles = await UserManager.GetRolesAsync(currentUser);
     bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
-    bool canExport = userRoles.Any(r => r == "Admin" || r == "HR");
+    bool canExport = userRoles.Any(r => r == "Admin" || r == "HR" || r == "PersonelIsleri");
     bool isIntern = userRoles.Contains("Intern");
 }
 

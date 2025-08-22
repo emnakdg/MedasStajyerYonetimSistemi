@@ -38,19 +38,22 @@ namespace MedasStajyerYonetimSistemi.Models
     public enum ApprovalStatus
     {
         [Display(Name = "Beklemede")]
-        Pending = 1,
+        Pending = 0,
 
         [Display(Name = "Onaylandı")]
-        Approved = 2,
+        Approved = 1,
 
         [Display(Name = "Reddedildi")]
-        Rejected = 3,
+        Rejected = 2,
 
-        [Display(Name = "Revize")]
-        Revision = 4,
+        [Display(Name = "Revizyon")]
+        Revision = 3,
 
-        [Display(Name = "İptal")]
-        Cancelled = 5
+        [Display(Name = "İptal Edildi")]
+        Cancelled = 4,
+
+        [Display(Name = "Supervisor Onaylandı")] // YENİ DURUM
+        SupervisorApproved = 5
     }
 
     public enum WorkLocation

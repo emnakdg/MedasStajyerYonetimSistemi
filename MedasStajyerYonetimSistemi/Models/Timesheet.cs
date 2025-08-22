@@ -17,20 +17,37 @@ namespace MedasStajyerYonetimSistemi.Models
         [Display(Name = "Durum")]
         public ApprovalStatus Status { get; set; } = ApprovalStatus.Pending;
 
-        [Display(Name = "Onaylayan Kişi")]
+        // SUPERVISOR ONAY BİLGİLERİ (YENİ)
+        [Display(Name = "Supervisor")]
+        [StringLength(100)]
+        public string? SupervisorName { get; set; }
+
+        [Display(Name = "Supervisor ID")]
+        public string? SupervisorId { get; set; }
+
+        [Display(Name = "Supervisor Onay Tarihi")]
+        public DateTime? SupervisorApprovalDate { get; set; }
+
+        [Display(Name = "Supervisor Notu")]
+        [StringLength(500)]
+        public string? SupervisorNote { get; set; }
+
+        // İK/FINAL ONAY BİLGİLERİ (MEVCUT)
+        [Display(Name = "Final Onaylayan")]
         [StringLength(100)]
         public string? ApproverName { get; set; }
 
-        [Display(Name = "Onaylayan Kişi ID")]
+        [Display(Name = "Final Onaylayan ID")]
         public string? ApproverId { get; set; }
 
-        [Display(Name = "Onay Tarihi")]
+        [Display(Name = "Final Onay Tarihi")]
         public DateTime? ApprovalDate { get; set; }
 
-        [Display(Name = "Onay Notu")]
+        [Display(Name = "Final Onay Notu")]
         [StringLength(500)]
         public string? ApprovalNote { get; set; }
 
+        // DİĞER ALANLAR (DEĞİŞMEDİ)
         [Display(Name = "Manuel Form")]
         public bool IsManualEntry { get; set; } = false;
 
@@ -55,7 +72,8 @@ namespace MedasStajyerYonetimSistemi.Models
 
         // Navigation Properties
         public virtual Intern Intern { get; set; } = null!;
-        public virtual ApplicationUser? Approver { get; set; }
+        public virtual ApplicationUser? Approver { get; set; } // Final onaylayan
+        public virtual ApplicationUser? Supervisor { get; set; } // Supervisor
         public virtual ICollection<TimesheetDetail> TimesheetDetails { get; set; } = new List<TimesheetDetail>();
         public virtual ICollection<ApprovalHistory> ApprovalHistories { get; set; } = new List<ApprovalHistory>();
     }

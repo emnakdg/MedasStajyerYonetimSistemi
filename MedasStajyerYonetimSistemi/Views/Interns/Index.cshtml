@@ -11,7 +11,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="card-title mb-0">Stajyer Listesi</h3>
                     <div class="col-md-6 text-end">
-                        @* Sadece HR ve Admin yeni kayıt oluşturabilir *@
+                        @* Sadece HR, Admin ve Personel Isleri yeni kayıt oluşturabilir *@
                         @if (User.IsInRole("Admin") || User.IsInRole("HR"))
                         {
                             <a asp-action="Create" class="btn btn-success">
@@ -19,8 +19,8 @@
                             </a>
                         }
 
-                        @* Sadece HR ve Admin export yapabilir *@
-                        @if (User.IsInRole("Admin") || User.IsInRole("HR"))
+                        @* Sadece HR, Admin ve Personel Isleri export yapabilir *@
+                        @if (User.IsInRole("Admin") || User.IsInRole("HR") || User.IsInRole("PersonelIsleri"))
                         {
                             <div class="btn-group ms-2">
                                 <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
