@@ -6,7 +6,6 @@
     ViewData["Title"] = "İzin Talebi Detayı";
     var currentUser = await UserManager.GetUserAsync(User);
     var userRoles = await UserManager.GetRolesAsync(currentUser);
-    // DÜZELTİLDİ: PersonelIsleri'nin onaylama yetkisi kaldırıldı
     bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
     bool isIntern = userRoles.Contains("Intern");
     bool canEdit = (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision) &&
@@ -220,7 +219,7 @@
                             <p class="mb-0">@Model.CreatedDate.ToString("dd.MM.yyyy HH:mm")</p>
                         </div>
 
-                        <!-- ONAYLAMA BUTONLARI - SADECE YETKİLİ ROLLER GÖREBİLİR -->
+                        <!-- onaylama butonları sadece yetkililer -->
                         @if (canApprove && (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision))
                         {
                             <hr>
@@ -243,7 +242,7 @@
     </div>
 </div>
 
-<!-- MODAL'LAR - SADECE YETKİLİLER İÇİN -->
+<!-- modallar sadece yetkişiler -->
 @if (canApprove)
 {
     <!-- Reddetme Modal -->
@@ -272,38 +271,10 @@
         </div>
     </div>
 
-    <!-- Revizyon Modal -->
-    <div class="modal fade" id="revisionModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Revizyon İste</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <form id="revisionForm" method="post">
-                    <div class="modal-body">
-                        <input type="hidden" id="revisionLeaveId" name="id" />
-                        <div class="mb-3">
-                            <label for="revisionNote" class="form-label">Revizyon Notu *</label>
-                            <textarea class="form-control" id="revisionNote" name="approvalNote" rows="3" required
-                                  placeholder="Hangi değişikliklerin yapılması gerektiğini belirtiniz..."></textarea>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
-                        <button type="submit" class="btn btn-warning">Revizyon İste</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-}
-
-<script>
-    // SADECE YETKİLİLER İÇİN JAVASCRIPT FONKSİYONLARI
-    @if (canApprove)
-    {
-                <text>
+    @section Scripts {
+        @if (canApprove)
+        {
+            <script>
                 function approveLeave(id) {
                     if (confirm('Bu izin talebini onaylamak istediğinizden emin misiniz?')) {
                         var form = document.createElement('form');
@@ -316,7 +287,7 @@
                         idInput.value = id;
                         form.appendChild(idInput);
 
-                        // Anti-forgery token'ı doğru şekilde al
+                        // Anti-forgery tokenı doğru şekilde al
                         var token = document.querySelector('input[name="__RequestVerificationToken"]');
                         if (token) {
                             var tokenInput = document.createElement('input');
@@ -347,7 +318,7 @@
                     new bootstrap.Modal(document.getElementById('revisionModal')).show();
                 }
 
-                // Form validation
+                // Form doğrulaması
                 document.addEventListener('DOMContentLoaded', function() {
                     // Reject form validation
                     const rejectForm = document.getElementById('rejectForm');
@@ -362,7 +333,7 @@
                         });
                     }
 
-                    // Revision form validation
+                    // Revizyon formu doğrulaması
                     const revisionForm = document.getElementById('revisionForm');
                     if (revisionForm) {
                         revisionForm.addEventListener('submit', function(e) {
@@ -375,6 +346,34 @@
                         });
                     }
                 });
-                </text>
+            </script>
+        }
     }
-</script>
+
+    <!-- Revizyon Modal -->
+    <div class="modal fade" id="revisionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Revizyon İste</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="revisionForm" method="post">
+                    <div class="modal-body">
+                        <input type="hidden" id="revisionLeaveId" name="id" />
+                        <div class="mb-3">
+                            <label for="revisionNote" class="form-label">Revizyon Notu *</label>
+                            <textarea class="form-control" id="revisionNote" name="approvalNote" rows="3" required
+                                  placeholder="Hangi değişikliklerin yapılması gerektiğini belirtiniz..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-warning">Revizyon İste</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+

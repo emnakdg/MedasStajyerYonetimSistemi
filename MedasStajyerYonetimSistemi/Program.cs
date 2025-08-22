@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Geliþtirme ortamýný zorla
 builder.Environment.EnvironmentName = "Development";
 
-// Add services to the container.
+// servisleri containera ekel
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 

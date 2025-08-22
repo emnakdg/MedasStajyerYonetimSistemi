@@ -230,7 +230,7 @@
             tokenInput.value = tokenElement.value;
             form.appendChild(tokenInput);
 
-            // Element'lerin varlığını kontrol et
+            // Elementlerin varlığını kontrol et
             const elements = {
                 present: document.getElementById('present_' + detailId),
                 start: document.getElementById('start_' + detailId),
@@ -254,7 +254,7 @@
             console.log('Training info:', elements.trainingInfo.value);
             console.log('Training hours:', elements.trainingHours.value);
 
-            // Ondalık sayıları düzelt (Türkçe 2,5 -> İngilizce 2.5)
+            // Ondalık sayıları düzelt
             const leaveHoursValue = elements.leaveHours.value.replace(',', '.') || '0';
             const trainingHoursValue = elements.trainingHours.value.replace(',', '.') || '0';
 

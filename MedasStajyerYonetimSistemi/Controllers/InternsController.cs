@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedasStajyerYonetimSistemi.Controllers
 {
-    [Authorize] // Temel authorization - giriş yapmış olmalı
+    [Authorize] // giriş yapmış olmalı
     public class InternsController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -72,7 +72,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             ViewBag.TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             ViewBag.TotalCount = totalCount;
 
-            // Stajyer ise farklı bir view göster (opsiyonel)
+            // Stajyer ise farklı bir view göster
             if (userRoles.Contains("Intern"))
             {
                 ViewBag.IsInternView = true;
@@ -82,7 +82,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
         // GET: Interns/Details - Stajyer Detayları 
-        // Stajyerler sadece kendi detaylarını görebilir
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null) return NotFound();
@@ -183,7 +182,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             {
                 try
                 {
-                    // Email kontrolü (kendisi hariç)
+                    // Email kontrolü
                     var existingIntern = await _context.Interns
                         .FirstOrDefaultAsync(i => i.Email == intern.Email && i.Id != intern.Id && i.IsActive);
 
@@ -252,7 +251,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     return RedirectToAction(nameof(Index));
                 }
 
-                // Soft delete
+                // Soft delete durumu databasede false yaparak görünürlüğü kapat
                 intern.IsActive = false;
                 intern.UpdatedDate = DateTime.Now;
 
@@ -342,7 +341,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
         private async Task PopulateDropDowns(string? selectedResponsiblePersonId = null)
         {
-            // Sorumlu kişiler (HR ve Supervisor rollerindeki kullanıcılar)
+            // Sorumlu kişiler
             var responsibleUsers = await _userManager.GetUsersInRoleAsync("HR");
             var supervisors = await _userManager.GetUsersInRoleAsync("Supervisor");
 
@@ -387,7 +386,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
     }
 }
 
-// Görünen Ad için Enum Extensions (eğer yoksa)
+// Görünen Ad için Enum Extensions
 public static class EnumExtensions
 {
     public static string GetDisplayName(this Enum enumValue)

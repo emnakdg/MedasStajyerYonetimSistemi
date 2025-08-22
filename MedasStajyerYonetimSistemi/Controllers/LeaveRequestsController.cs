@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedasStajyerYonetimSistemi.Controllers
 {
-    [Authorize] // Temel authorization - giriş yapmış olmalı
+    [Authorize] // giriş yapmış olmalı
     public class LeaveRequestsController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -22,7 +22,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
         // GET: LeaveRequests - İzin Talepleri Listesi
-        // Stajyerler sadece kendi izinlerini, diğerleri herkesi görebilir
         public async Task<IActionResult> Index(string status = "All", int page = 1)
         {
             var currentUser = await _userManager.GetUserAsync(User);
@@ -47,7 +46,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 query = query.Where(lr => lr.Status == statusEnum);
             }
 
-            // Sıralama (en yeni önce)
+            // Sıralama en yeni önce
             query = query.OrderByDescending(lr => lr.CreatedDate);
 
             const int pageSize = 15;
@@ -62,7 +61,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             ViewBag.TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
             ViewBag.TotalCount = totalCount;
 
-            // Status options for filter dropdown
+            // Açılır menü için durumlar
             ViewBag.StatusOptions = new List<SelectListItem>
             {
                 new() { Value = "All", Text = "Tümü" },
@@ -71,15 +70,14 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 new() { Value = "Rejected", Text = "Reddedildi" }
             };
 
-            // Kullanıcı rolü bilgisini view'a gönder
+            // Kullanıcı rolü bilgisini viewa gönder
             ViewBag.IsIntern = userRoles.Contains("Intern");
             ViewBag.CanApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
 
             return View(leaveRequests);
         }
 
-        // GET: LeaveRequests/Details/5 - İzin Talebi Detayları
-        // Stajyerler sadece kendi izin detaylarını görebilir
+        // GET: LeaveRequests/Details - İzin Talebi Detayları
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null) return NotFound();
@@ -109,7 +107,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
         // GET: LeaveRequests/Create - Yeni İzin Talebi
-        // Herkes izin talebi oluşturabilir ama giriş yapmış olmalı
         public async Task<IActionResult> Create()
         {
             var currentUser = await _userManager.GetUserAsync(User);
@@ -198,7 +195,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (ModelState.IsValid)
             {
-                // DÜZELTME: Toplam gün ve saat hesaplama
+                // Toplam gün ve saat hesaplama
                 var totalHours = CalculateLeaveHours(leaveRequest.StartDateTime, leaveRequest.EndDateTime);
                 var totalDays = CalculateLeaveDays(leaveRequest.StartDateTime, leaveRequest.EndDateTime);
 
@@ -220,7 +217,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     return View(leaveRequest);
                 }
 
-                // Manuel entry kontrolü (sadece HR/Admin manuel izin oluşturabilir)
+                // Manuel entry kontrolü 
                 if (!userRoles.Contains("Intern"))
                 {
                     leaveRequest.IsManualEntry = true;
@@ -242,7 +239,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
 
-        // GET: LeaveRequests/Edit - İzin Düzenleme (Stajyer + Yetkili roller)
+        // GET: LeaveRequests/Edit - İzin Düzenleme
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
@@ -277,7 +274,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // POST: LeaveRequests/RequestRevision - İzin Revizyon İsteme (Sadece yetkili roller)
+        // POST: LeaveRequests/RequestRevision - İzin Revizyon İsteme
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin,HR,Supervisor")]
@@ -377,7 +374,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     existingLeaveRequest.TotalHours = totalHours;
                     existingLeaveRequest.TotalDays = totalHours >= 8 ? (int)Math.Ceiling(totalHours / 8) : 0;
 
-                    // Eğer stajyer düzenliyorsa, durumu beklemede yap
+                    // Eğer stajyer düzenliyorsa durumu beklemede yap
                     if (userRoles.Contains("Intern") && existingLeaveRequest.Status == ApprovalStatus.Revision)
                     {
                         existingLeaveRequest.Status = ApprovalStatus.Pending;
@@ -387,7 +384,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                         existingLeaveRequest.ApproverName = null;
                     }
 
-                    // Çakışma kontrolü (düzenlenen kayıt hariç)
+                    // Çakışma kontrolü düzenlenen kayıt hariç
                     var conflictingLeave = await _context.LeaveRequests
                         .Where(lr => lr.InternId == existingLeaveRequest.InternId &&
                                     lr.Id != existingLeaveRequest.Id &&
@@ -429,7 +426,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // POST: LeaveRequests/Approve - İzin Onaylama (Sadece Yetkililer)
+        // POST: LeaveRequests/Approve - İzin Onaylama
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin,HR,Supervisor")]
@@ -459,7 +456,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             _context.Update(leaveRequest);
             await _context.SaveChangesAsync();
 
-            // YENİ: İzin onaylandığında puantaja otomatik yansıt
+            // İzin onaylandığında puantaja otomatik yansıt
             if (leaveRequest.ShouldReflectToTimesheet)
             {
                 await ReflectLeaveToTimesheet(leaveRequest);
@@ -469,12 +466,12 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction(nameof(Details), new { id });
         }
 
-        // DÜZELTİLMİŞ: İzni puantaja yansıtma
+        // İzni puantaja yansıtma
         private async Task ReflectLeaveToTimesheet(LeaveRequest leaveRequest)
         {
             try
             {
-                // AYNI GÜN İZİNLERİ İÇİN ÖZEL KONTROL
+                // Aynı gün içinde alınan izinler için özel kontrol
                 if (leaveRequest.StartDateTime.Date == leaveRequest.EndDateTime.Date)
                 {
                     // Aynı gün içerisindeki izin
@@ -501,11 +498,10 @@ namespace MedasStajyerYonetimSistemi.Controllers
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"İzin puantaga yansıtılırken hata: {ex.Message}");
-                // Hata logla ama approval process'i durdurmaTempData["ErrorMessage"] = $"İzin puantaja yansıtılırken hata: {ex.Message}";
             }
         }
 
-        // AYNI GÜN İZİNLERİ İÇİN YENİ METOD
+        // Aynı gün içinde başlayan ve biten izinler için
         private async Task ProcessSameDayLeave(LeaveRequest leaveRequest)
         {
             var date = leaveRequest.StartDateTime.Date;
@@ -548,17 +544,17 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (timesheetDetail != null)
             {
-                // AYNI GÜN içinde başlayıp bitiyor (örn: 09:00-14:00 = 5 saat)
+                // aynı gün içinde başlayıp bitiyor örn: 09:00-14:00 = 5 saat
                 var leaveHours = (decimal)(leaveRequest.EndDateTime - leaveRequest.StartDateTime).TotalHours;
 
                 // İzin bilgilerini güncelle
                 timesheetDetail.LeaveInfo = $"{GetLeaveTypeDescription(leaveRequest.LeaveType)} - Onaylandı";
                 timesheetDetail.LeaveHours = leaveHours;
 
-                // İŞ KURALI: 4.5 saatten fazla izin = yarım gün, 4.5 saat ve altı = tam gün
+                // 4.5 saatten fazla izin = yarım gün, 4.5 saat ve altı = tam gün
                 if (leaveHours > 4.5m)
                 {
-                    // 4.5 saatten fazla izin - YARIM GÜN sayılır
+                    // 4.5 saatten fazla izin - yarım gün
                     timesheetDetail.IsPresent = false;
                     timesheetDetail.StartTime = null;
                     timesheetDetail.EndTime = null;
@@ -566,7 +562,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 }
                 else
                 {
-                    // 4.5 saat ve altı izin - TAM GÜN sayılır
+                    // 4.5 saat ve altı izin - tam gün
                     timesheetDetail.IsPresent = true;
                     // Çalışma saatleri varsayılan olarak ayarlanır
                     if (timesheetDetail.StartTime == null) timesheetDetail.StartTime = TimeSpan.FromHours(8.5); // 08:30
@@ -580,10 +576,10 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // ÇOK GÜNLÜK İZİNLER İÇİN MEVCUT METOD
+        // birden fazla gün süren izinler için
         private async Task ProcessMultiDayLeave(LeaveRequest leaveRequest)
         {
-            // Dönüş tarihi DAHİL EDİLMEZ - o gün işe dönüş günüdür
+            // Dönüş tarihi dahil değil - o gün işe dönüş günüdür
             for (var date = leaveRequest.StartDateTime.Date; date < leaveRequest.EndDateTime.Date; date = date.AddDays(1))
             {
                 // Bu ay için puantaj var mı kontrol et
@@ -631,7 +627,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     // Saatlik hesaplama
                     if (date.Date == leaveRequest.StartDateTime.Date)
                     {
-                        // İLK GÜN - başlangıç saatinden gün sonuna kadar
+                        // ilk gün başlangıç saatinden gün sonuna kadar
                         var endOfWorkDay = date.Date.AddHours(17).AddMinutes(30); // 17:30
                         timesheetDetail.LeaveHours = (decimal)(endOfWorkDay - leaveRequest.StartDateTime).TotalHours;
 
@@ -642,12 +638,12 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     }
                     else if (date.Date == leaveRequest.EndDateTime.Date.AddDays(-1))
                     {
-                        // SON GÜN öncesi - tam gün izin
+                        // son gün öncesi - tam gün izin
                         timesheetDetail.LeaveHours = 9; // Standart 9 saatlik çalışma günü
                     }
                     else
                     {
-                        // ARA GÜNLER - tam gün izin
+                        // ara günler - tam gün izin
                         timesheetDetail.LeaveHours = 9; // Standart 9 saatlik çalışma günü
                     }
 
@@ -661,7 +657,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // POST: LeaveRequests/Reject - İzin Reddetme(Sadece yetkili roller)
+        // POST: LeaveRequests/Reject - İzin Reddetme
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin,HR,Supervisor")]
@@ -701,7 +697,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // GET: LeaveRequests/Delete - İzin Talebini Sil (Sadece Admin ve kendi talebi)
+        // GET: LeaveRequests/Delete - İzin Talebini Sil
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null) return NotFound();
@@ -716,7 +712,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (leaveRequest == null) return NotFound();
 
-            // Sadece Admin veya kendi talebi olan stajyer silebilir (ve sadece Pending durumunda)
+            // Sadece Admin veya kendi talebi olan stajyer silebilir ve sadece Pending durumunda
             if (!userRoles.Contains("Admin"))
             {
                 if (!userRoles.Contains("Intern") || leaveRequest.Intern.Email != currentUser.Email)
@@ -735,7 +731,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(leaveRequest);
         }
 
-        // POST: LeaveRequests/Delete - İzin Talebini Sil (Onay)
+        // POST: LeaveRequests/Delete - İzin Talebini Sil Onay
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -784,7 +780,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // Excel Export (Sadece PersonelIsleri)
+        // Excel Export Sadece PersonelIsleri
         [Authorize(Roles = "PersonelIsleri")]
         public async Task<IActionResult> ExportToExcel(string status = "All", DateTime? startDate = null, DateTime? endDate = null)
         {
@@ -900,7 +896,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 // Birden fazla gün
                 var currentDate = startDateTime.Date;
 
-                while (currentDate < endDateTime.Date) // Dönüş günü DAHİL EDİLMEZ
+                while (currentDate < endDateTime.Date) // Dönüş günü dahil dğeil
                 {
                     if (currentDate == startDateTime.Date)
                     {
@@ -1016,6 +1012,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             timesheet.TotalTrainingHours = 0;
         }
 
+        // İzin türü açıklaması
         private string GetLeaveTypeDescription(LeaveType leaveType)
         {
             return leaveType switch
@@ -1029,7 +1026,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             };
         }
 
-        // Puantaj toplamlarını yeniden hesapla (mevcut metoda eklenmeli)
+        // Puantaj toplamlarını yeniden hesapla
         private async Task RecalculateTimesheetTotals(int timesheetId)
         {
             var timesheet = await _context.Timesheets
@@ -1047,6 +1044,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
+        // Gün adları
         private string GetTurkishDayName(DayOfWeek dayOfWeek)
         {
             return dayOfWeek switch
@@ -1062,6 +1060,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             };
         }
 
+        // Onay durumları
         private string GetApprovalStatusDescription(ApprovalStatus status)
         {
             return status switch

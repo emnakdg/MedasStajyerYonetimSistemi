@@ -25,9 +25,7 @@ namespace MedasStajyerYonetimSistemi.Data
         {
             base.OnModelCreating(builder);
 
-            // ============================================================================
             // ApplicationUser Konfigürasyonu
-            // ============================================================================
             builder.Entity<ApplicationUser>(entity =>
             {
                 entity.Property(e => e.FullName).HasMaxLength(100);
@@ -40,9 +38,7 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.HasIndex(e => e.Email).IsUnique();
             });
 
-            // ============================================================================
-            // Intern (Stajyer) Konfigürasyonu
-            // ============================================================================
+            // Intern - Stajyer Konfigürasyonu
             builder.Entity<Intern>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -68,18 +64,16 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.HasOne(e => e.ResponsibleUser)
                       .WithMany()
                       .HasForeignKey(e => e.ResponsiblePersonId)
-                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: SetNull yerine NoAction
+                      .OnDelete(DeleteBehavior.NoAction);
 
-                // Index'ler
+                // Indexler
                 entity.HasIndex(e => e.Email);
                 entity.HasIndex(e => e.EmployeeNumber);
                 entity.HasIndex(e => e.InternshipType);
                 entity.HasIndex(e => e.IsActive);
             });
 
-            // ============================================================================
-            // LeaveRequest (İzin Talepleri) Konfigürasyonu
-            // ============================================================================
+            // LeaveRequest - İzin Talepleri Konfigürasyonu
             builder.Entity<LeaveRequest>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -95,20 +89,18 @@ namespace MedasStajyerYonetimSistemi.Data
                       .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasOne(e => e.Approver)
-                      .WithMany() // DÜZELTME: Navigation property kaldırıldı
+                      .WithMany()
                       .HasForeignKey(e => e.ApproverId)
-                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: SetNull yerine NoAction
+                      .OnDelete(DeleteBehavior.NoAction);
 
-                // Index'ler
+                // indexler
                 entity.HasIndex(e => e.Status);
                 entity.HasIndex(e => e.LeaveType);
                 entity.HasIndex(e => e.StartDateTime);
                 entity.HasIndex(e => e.CreatedDate);
             });
 
-            // ============================================================================
-            // Timesheet (Puantaj) Konfigürasyonu - DÜZELTİLDİ
-            // ============================================================================
+            // Timesheet - Puantaj Konfigürasyonu
             builder.Entity<Timesheet>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -116,7 +108,6 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.Property(e => e.ApprovalNote).HasMaxLength(500);
                 entity.Property(e => e.TotalTrainingHours).HasColumnType("decimal(6,2)");
 
-                // YENİ SUPERVISOR ALANLARI
                 entity.Property(e => e.SupervisorName).HasMaxLength(100);
                 entity.Property(e => e.SupervisorNote).HasMaxLength(500);
 
@@ -126,30 +117,28 @@ namespace MedasStajyerYonetimSistemi.Data
                       .HasForeignKey(e => e.InternId)
                       .OnDelete(DeleteBehavior.Cascade);
 
-                // Final Approver (İK) ilişkisi
+                // Son onay insan kaynakları ilişkisi
                 entity.HasOne(e => e.Approver)
-                      .WithMany() // DÜZELTME: Navigation property kaldırıldı
+                      .WithMany()
                       .HasForeignKey(e => e.ApproverId)
-                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: Cascade conflict önlendi
+                      .OnDelete(DeleteBehavior.NoAction);
 
                 // Supervisor ilişkisi
                 entity.HasOne(e => e.Supervisor)
-                      .WithMany() // Navigation property yok
+                      .WithMany()
                       .HasForeignKey(e => e.SupervisorId)
-                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: Cascade conflict önlendi
+                      .OnDelete(DeleteBehavior.NoAction);
 
-                // Index'ler
+                // Indexler
                 entity.HasIndex(e => e.Status);
                 entity.HasIndex(e => e.PeriodDate);
                 entity.HasIndex(e => e.CreatedDate);
 
-                // KALDIRILDI: Unique constraint - reddedilen/iptal edilen puantajlar için yeniden oluşturma imkanı
+                // reddedilen/iptal edilen puantajlar için yeniden oluşturma imkanı
                 // entity.HasIndex(e => new { e.InternId, e.PeriodDate }).IsUnique();
             });
 
-            // ============================================================================
-            // TimesheetDetail (Puantaj Detay) Konfigürasyonu
-            // ============================================================================
+            // TimesheetDetail - Puantaj Detay Konfigürasyonu
             builder.Entity<TimesheetDetail>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -166,18 +155,16 @@ namespace MedasStajyerYonetimSistemi.Data
                       .HasForeignKey(e => e.TimesheetId)
                       .OnDelete(DeleteBehavior.Cascade);
 
-                // Index'ler
+                // Indexler
                 entity.HasIndex(e => e.WorkDate);
                 entity.HasIndex(e => e.IsPresent);
                 entity.HasIndex(e => e.WorkLocation);
 
-                // Unique constraint - Aynı puantajda aynı gün sadece bir kez olabilir
+                // Aynı puantajda aynı gün sadece bir kez olabilir
                 entity.HasIndex(e => new { e.TimesheetId, e.WorkDate }).IsUnique();
             });
 
-            // ============================================================================
-            // ApprovalHistory (Onay Geçmişi) Konfigürasyonu
-            // ============================================================================
+            // ApprovalHistory - Onay Geçmişi Konfigürasyonu
             builder.Entity<ApprovalHistory>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -189,17 +176,15 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.HasOne(e => e.Approver)
                       .WithMany()
                       .HasForeignKey(e => e.ApproverId)
-                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: SetNull yerine NoAction
+                      .OnDelete(DeleteBehavior.NoAction);
 
-                // Index'ler
+                // Indexler
                 entity.HasIndex(e => e.ReferenceType);
                 entity.HasIndex(e => e.ReferenceId);
                 entity.HasIndex(e => e.ActionDate);
             });
 
-            // ============================================================================
-            // SystemLog (Sistem Logları) Konfigürasyonu
-            // ============================================================================
+            // SystemLog - Sistem Logları Konfigürasyonu
             builder.Entity<SystemLog>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -213,17 +198,15 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.HasOne(e => e.User)
                       .WithMany()
                       .HasForeignKey(e => e.UserId)
-                      .OnDelete(DeleteBehavior.NoAction); // DÜZELTME: SetNull yerine NoAction
+                      .OnDelete(DeleteBehavior.NoAction);
 
-                // Index'ler
+                // Indexler
                 entity.HasIndex(e => e.ActionDate);
                 entity.HasIndex(e => e.TableName);
                 entity.HasIndex(e => e.Action);
             });
 
-            // ============================================================================
-            // EmailNotification (Email Bildirimleri) Konfigürasyonu
-            // ============================================================================
+            // EmailNotification - Email Bildirimleri Konfigürasyonu
             builder.Entity<EmailNotification>(entity =>
             {
                 entity.HasKey(e => e.Id);
@@ -239,9 +222,7 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.HasIndex(e => e.ReferenceType);
             });
 
-            // ============================================================================
-            // CloudoffixSyncLog (Cloudoffix Senkronizasyon) Konfigürasyonu
-            // ============================================================================
+            // CloudoffixSyncLog - Cloudoffix Senkronizasyon Konfigürasyonu
             builder.Entity<CloudoffixSyncLog>(entity =>
             {
                 entity.HasKey(e => e.Id);

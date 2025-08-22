@@ -17,7 +17,7 @@ namespace MedasStajyerYonetimSistemi.Models
         [Display(Name = "Durum")]
         public ApprovalStatus Status { get; set; } = ApprovalStatus.Pending;
 
-        // SUPERVISOR ONAY BİLGİLERİ (YENİ)
+        // supervisor onay bilgileri
         [Display(Name = "Supervisor")]
         [StringLength(100)]
         public string? SupervisorName { get; set; }
@@ -32,7 +32,7 @@ namespace MedasStajyerYonetimSistemi.Models
         [StringLength(500)]
         public string? SupervisorNote { get; set; }
 
-        // İK/FINAL ONAY BİLGİLERİ (MEVCUT)
+        // ik final onay bilgileri
         [Display(Name = "Final Onaylayan")]
         [StringLength(100)]
         public string? ApproverName { get; set; }
@@ -47,7 +47,6 @@ namespace MedasStajyerYonetimSistemi.Models
         [StringLength(500)]
         public string? ApprovalNote { get; set; }
 
-        // DİĞER ALANLAR (DEĞİŞMEDİ)
         [Display(Name = "Manuel Form")]
         public bool IsManualEntry { get; set; } = false;
 

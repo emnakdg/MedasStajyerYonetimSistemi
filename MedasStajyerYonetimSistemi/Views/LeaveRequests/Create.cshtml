@@ -183,7 +183,7 @@
 
             endDateTimeInput.addEventListener('change', calculateTotals);
 
-            // Sayfa yüklendiğinde de hesapla (edit durumu için)
+            // edit durumu için sayfa yüklendiğinde de hesapla
             calculateTotals();
         });
 
@@ -240,7 +240,7 @@
                         hourDisplay.textContent = result.hours.toFixed(1) + ' saat';
                     }
 
-                    // Gizli inputlara da yaz (eğer varsa)
+                    // varsa gizli inputlara da yaz
                     const totalDaysInput = document.querySelector('input[name="TotalDays"]');
                     const totalHoursInput = document.querySelector('input[name="TotalHours"]');
 
@@ -255,7 +255,7 @@
                 // Aynı günde mi?
                 if (startDateTime.toDateString() === endDateTime.toDateString()) {
                     // Aynı gün içerisinde saat bazlı izin
-                    totalHours = (endDateTime - startDateTime) / (1000 * 60 * 60); // millisaniye to saat
+                    totalHours = (endDateTime - startDateTime) / (1000 * 60 * 60); // millisaniye saat dönüşüüm
                     return {
                         days: 0, // Aynı gün olduğu için 0 gün
                         hours: totalHours

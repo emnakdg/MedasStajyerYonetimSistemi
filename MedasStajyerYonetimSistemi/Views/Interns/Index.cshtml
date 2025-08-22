@@ -19,7 +19,7 @@
                             </a>
                         }
 
-                        @* DÜZELTİLDİ: Sadece PersonelIsleri export yapabilir *@
+                        @* Sadece PersonelIsleri export yapabilir *@
                         @if (User.IsInRole("PersonelIsleri"))
                         {
                             <a asp-action="ExportToExcel" class="btn btn-success me-2">
@@ -77,7 +77,7 @@
                                         <th>Departman/İşletme</th>
                                         <th>Staj Günleri</th>
                                         <th>Detay</th>
-                                        @* Sadece HR ve Admin için düzenleme/silme butonları *@
+                                        @* Sadece HR ve Admin için dzüenleme silme butonları *@
                                         @if (User.IsInRole("Admin") || User.IsInRole("HR"))
                                         {
                                             <th>İşlemler</th>
@@ -110,7 +110,7 @@
                                                     <i class="fas fa-eye me-1"></i>Detay
                                                 </a>
                                             </td>
-                                            @* Sadece HR ve Admin için düzenleme/silme *@
+                                            @* Sadece HR ve Admin için düzenleme ve silme *@
                                             @if (User.IsInRole("Admin") || User.IsInRole("HR"))
                                             {
                                                 <td>

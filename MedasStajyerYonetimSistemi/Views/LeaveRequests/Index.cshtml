@@ -6,9 +6,7 @@
     ViewData["Title"] = "İzin Talepleri";
     var currentUser = await UserManager.GetUserAsync(User);
     var userRoles = await UserManager.GetRolesAsync(currentUser);
-    // DÜZELTİLDİ: PersonelIsleri'nin onaylama yetkisi kaldırıldı
     bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
-    // DÜZELTİLDİ: Sadece PersonelIsleri export yapabilir
     bool canExport = userRoles.Contains("PersonelIsleri");
     bool isIntern = userRoles.Contains("Intern");
     var canCreate = !User.IsInRole("PersonelIsleri");
@@ -177,13 +175,13 @@
                                         <td>@item.CreatedDate.ToString("dd.MM.yyyy HH:mm")</td>
                                         <td>
                                             <div class="btn-group" role="group">
-                                                <!-- Herkes Detay Görebilir -->
+                                                <!-- Herkes detay görebilir -->
                                                 <a asp-action="Details" asp-route-id="@item.Id"
                                                    class="btn btn-sm btn-outline-primary" title="Detaylar">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
 
-                                                <!-- Stajyer Sadece Beklemedeki/Revize Kendi Taleplerini Düzenleyebilir -->
+                                                <!-- Stajyer sadece beklemedeki, revize ve kendi taleplerini düzenleyebilir -->
                                                 @if (isIntern && (item.Status == ApprovalStatus.Pending || item.Status == ApprovalStatus.Revision) && item.Intern.Email == currentUser.Email)
                                                 {
                                                     <a asp-action="Edit" asp-route-id="@item.Id"
@@ -192,7 +190,7 @@
                                                     </a>
                                                 }
 
-                                                <!-- SADECE YETKİLİLER ONAYLAMA/REDDETME YAPABİLİR -->
+                                                <!-- sadece yetkililer onaylama, reddetme yapabilir -->
                                                 @if (canApprove && (item.Status == ApprovalStatus.Pending || item.Status == ApprovalStatus.Revision))
                                                 {
                                                     <button type="button" class="btn btn-sm btn-outline-success"
@@ -248,7 +246,7 @@
     </div>
 </div>
 
-<!-- MODAL'LAR - SADECE YETKİLİLER İÇİN -->
+<!-- modallar sadece yetkililer -->
 @if (canApprove)
 {
     <!-- Reddetme Modal -->
@@ -307,7 +305,7 @@
 }
 
 @section Scripts {
-    <!-- SADECE YETKİLİLER İÇİN JAVASCRIPT FONKSİYONLARI -->
+    <!-- javascript sadece yetkililer -->
     @if (canApprove)
     {
         <script>

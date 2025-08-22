@@ -6,19 +6,18 @@
     ViewData["Title"] = "Puantaj Detayı";
     var currentUser = await UserManager.GetUserAsync(User);
     var userRoles = await UserManager.GetRolesAsync(currentUser);
-    // DÜZELTİLDİ: PersonelIsleri'nin onaylama yetkisi kaldırıldı
     bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
     bool isIntern = userRoles.Contains("Intern");
     var canCreate = !User.IsInRole("PersonelIsleri");
 
-    // Detaylı yetki kontrolü
+    // yetki kontrolü
     bool internCanEditDetails = isIntern && Model.Intern.Email == currentUser.Email;
 
-    // Form düzenleme (Edit sayfası) hakları
+    // Form düzenleme yetkisi
     bool canEditForm = false;
     if (userRoles.Any(r => r == "Admin" || r == "HR"))
     {
-        canEditForm = true; // Admin/HR her zaman
+        canEditForm = true; // Admin ve ik her zaman
     }
     else if (userRoles.Contains("Supervisor"))
     {
@@ -29,10 +28,10 @@
         canEditForm = (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision);
     }
 
-    // Detay düzenleme hakları (onaylanmış puantajlarda da olabilir)
+    // Detay düzenleme yetkisi
     bool canEditDetails = canApprove || internCanEditDetails;
 
-    // YENİ: Hangi onay seviyesinde olduğumuzu belirle
+    // Hangi onay seviyesinde olduğumuzu belirle
     bool showSupervisorApproval = userRoles.Contains("Supervisor") &&
                                 (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision);
 
@@ -410,7 +409,7 @@
                             }
                         </div>
 
-                        <!-- SUPERVISOR ONAY BİLGİLERİ -->
+                        <!-- supervisor onay bilgileri -->
                         @if (!string.IsNullOrEmpty(Model.SupervisorName))
                         {
                             <div class="mb-2">
@@ -437,7 +436,7 @@
                             </div>
                         }
 
-                        <!-- FİNAL ONAY BİLGİLERİ -->
+                        <!-- final onay bilgileri -->
                         @if (!string.IsNullOrEmpty(Model.ApproverName))
                         {
                             <div class="mb-2">
@@ -464,7 +463,7 @@
                             </div>
                         }
 
-                        <!-- SUPERVISOR ONAYLAMA BUTONLARI -->
+                        <!-- supervisor onay butonları -->
                         @if (showSupervisorApproval)
                         {
                             <hr>
@@ -498,7 +497,7 @@
                             </div>
                         }
 
-                        <!-- İK ONAYLAMA BUTONLARI -->
+                        <!-- ik onay butonları -->
                         @if (showHRApproval)
                         {
                             <hr>
@@ -529,7 +528,7 @@
     </div>
 </div>
 
-<!-- MODAL'LAR -->
+<!-- modallar yetkililer -->
 @if (canApprove)
 {
     <!-- Reddetme Modal -->

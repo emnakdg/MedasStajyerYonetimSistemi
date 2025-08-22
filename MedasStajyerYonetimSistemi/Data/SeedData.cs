@@ -14,7 +14,7 @@ namespace MedasStajyerYonetimSistemi.Data
             var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-            // Veritabanını oluştur (eğer yoksa)
+            // Veritabanını oluştur yoksa
             await context.Database.EnsureCreatedAsync();
 
             // Rolleri oluştur
@@ -70,7 +70,7 @@ namespace MedasStajyerYonetimSistemi.Data
                 }
             }
 
-            // İK kullanıcısı
+            // ik kullanıcısı
             var hrEmail = "ayskozan@medas.com.tr";
             if (await userManager.FindByEmailAsync(hrEmail) == null)
             {
@@ -214,12 +214,12 @@ namespace MedasStajyerYonetimSistemi.Data
 
 
 
-        // Stajyer verilerini de güncelle - email'ler uyumlu olsun
+        // Stajyer verilerini güncelle
         private static async Task CreateInterns(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
         {
             if (context.Interns.Any())
             {
-                return; // Zaten stajyer var
+                return;
             }
 
             // Sorumlu kişiyi bul
@@ -232,7 +232,7 @@ namespace MedasStajyerYonetimSistemi.Data
             FullName = "Hatice BAKICI",
             Address = "Konya/Selçuklu",
             PhoneNumber = "555-555-5555",
-            Email = "hatice.bakici@medas.com.tr", // Kullanıcı adıyla uyumlu
+            Email = "hatice.bakici@medas.com.tr",
             Company = "MEDAŞ",
             Department = "İnsan Kaynakları ve Organizasyon Metot Müdürlüğü",
             ResponsiblePerson = "Ayşe KOZAN",
@@ -258,7 +258,7 @@ namespace MedasStajyerYonetimSistemi.Data
             FullName = "Ali KAYA",
             Address = "Konya/Meram",
             PhoneNumber = "555-666-7777",
-            Email = "ali.kaya@medas.com.tr", // Kullanıcı adıyla uyumlu
+            Email = "ali.kaya@medas.com.tr",
             Company = "MEDAŞ",
             Department = "Bilgi İşlem Müdürlüğü",
             ResponsiblePerson = "Ahmet DEMİR",
@@ -284,7 +284,7 @@ namespace MedasStajyerYonetimSistemi.Data
             FullName = "Zehra ÖZKAN",
             Address = "Konya/Karatay",
             PhoneNumber = "555-777-8888",
-            Email = "zehra.ozkan@medas.com.tr", // Kullanıcı adıyla uyumlu
+            Email = "zehra.ozkan@medas.com.tr",
             Company = "MEDAŞ",
             Department = "Teknik İşler Müdürlüğü",
             ResponsiblePerson = "Elif ÖZKAN",
@@ -310,11 +310,12 @@ namespace MedasStajyerYonetimSistemi.Data
             context.Interns.AddRange(interns);
         }
 
+        // İzin taleplerini oluştur
         private static async Task CreateLeaveRequests(ApplicationDbContext context)
         {
             if (context.LeaveRequests.Any())
             {
-                return; // Zaten izin talebi var
+                return;
             }
 
             var intern = context.Interns.FirstOrDefault();

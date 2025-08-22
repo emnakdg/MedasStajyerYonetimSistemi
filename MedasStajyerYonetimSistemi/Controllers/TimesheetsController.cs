@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MedasStajyerYonetimSistemi.Controllers
 {
-    [Authorize] // Temel authorization - giriş yapmış olmalı
+    [Authorize] // giriş yapmış olmalı
     public class TimesheetsController : Controller
     {
         private readonly ApplicationDbContext _context;
@@ -22,7 +22,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
         // GET: Timesheets - Puantaj Listesi
-        // Stajyerler sadece kendi puantajlarını, diğerleri herkesi görebilir
         public async Task<IActionResult> Index(string status = "All", int page = 1)
         {
             var currentUser = await _userManager.GetUserAsync(User);
@@ -39,7 +38,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 query = query.Where(t => t.Intern.Email == currentUser.Email);
             }
 
-            // İSTATİSTİKLER İÇİN TOPLAM SAYILAR (filtresiz)
+            // Durum bazlı sayma
             var allTimesheets = await query.ToListAsync(); // Tüm data'yı al
             ViewBag.TotalCount = allTimesheets.Count();
             ViewBag.PendingCount = allTimesheets.Count(t => t.Status == ApprovalStatus.Pending);
@@ -47,13 +46,13 @@ namespace MedasStajyerYonetimSistemi.Controllers
             ViewBag.RejectedCount = allTimesheets.Count(t => t.Status == ApprovalStatus.Rejected);
             ViewBag.RevisionCount = allTimesheets.Count(t => t.Status == ApprovalStatus.Revision);
 
-            // Durum filtresi (sayfa gösterimi için)
+            // Durum filtresi sayfa gösterimi için
             if (status != "All" && Enum.TryParse<ApprovalStatus>(status, out var statusEnum))
             {
                 query = query.Where(t => t.Status == statusEnum);
             }
 
-            // Sıralama (en yeni önce)
+            // Sıralama en yeni önce
             query = query.OrderByDescending(t => t.PeriodDate).ThenByDescending(t => t.CreatedDate);
 
             const int pageSize = 15;
@@ -183,7 +182,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (ModelState.IsValid)
             {
-                // Reddedilen/iptal edilen hariç aktif puantaj kontrolü
+                // Reddedilen, iptal edilen hariç aktif puantaj kontrolü
                 var existingCount = await _context.Timesheets
                     .CountAsync(t => t.InternId == timesheet.InternId &&
                                t.PeriodDate.Year == timesheet.PeriodDate.Year &&
@@ -221,7 +220,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(timesheet);
         }
 
-        // GET: Timesheets/Edit - Puantaj Düzenleme (Stajyer + Yetkili roller)
+        // GET: Timesheets/Edit - Puantaj Düzenleme
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
@@ -244,12 +243,12 @@ namespace MedasStajyerYonetimSistemi.Controllers
             {
                 canEditForm = true;
             }
-            // 2. Supervisor sadece Pending ve Revision durumlarında form düzenleyebilir
+            // 2. Supervisor sadece beklemede ve revizyon durumlarında form düzenleyebilir
             else if (userRoles.Contains("Supervisor"))
             {
                 canEditForm = (timesheet.Status == ApprovalStatus.Pending || timesheet.Status == ApprovalStatus.Revision);
             }
-            // 3. Stajyer SADECE Pending/Revision durumunda form düzenleyebilir
+            // 3. Stajyer sadece beklemede/revizyon durumunda form düzenleyebilir
             // Onaylanmış puantajlarda sadece detay düzenlemesi için Details sayfasına yönlendir
             else if (userRoles.Contains("Intern") && timesheet.Intern.Email == currentUser.Email)
             {
@@ -354,7 +353,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(timesheet);
         }
 
-        // POST: Timesheets/UpdateDetail - Puantaj Detay Güncelleme (AJAX)
+        // POST: Timesheets/UpdateDetail - Puantaj Detay Güncelleme
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateDetail(int detailId, bool isPresent, string startTime, string endTime,
@@ -377,7 +376,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     return RedirectToAction("Index");
                 }
 
-                // GENİŞLETİLMİŞ YETKİ KONTROLÜ
+                // yetki kontrolü 
                 bool canEditDetail = false;
 
                 // 1. Admin ve HR her zaman detay düzenleyebilir
@@ -385,14 +384,14 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 {
                     canEditDetail = true;
                 }
-                // 2. Supervisor: Pending, Revision ve Approved durumlarında düzenleyebilir
+                // 2. Supervisor: beklemede, revizyon ve onaylandı durumlarında düzenleyebilir
                 else if (userRoles.Contains("Supervisor"))
                 {
                     canEditDetail = (timesheetDetail.Timesheet.Status == ApprovalStatus.Pending ||
                                    timesheetDetail.Timesheet.Status == ApprovalStatus.Revision ||
                                    timesheetDetail.Timesheet.Status == ApprovalStatus.Approved);
                 }
-                // 3. Stajyer: Kendi puantajında tüm durumlarda detay düzenleyebilir (onaylanmış dahil)
+                // 3. Stajyer: Kendi puantajında tüm durumlarda detay düzenleyebilir
                 else if (userRoles.Contains("Intern") && timesheetDetail.Timesheet.Intern.Email == currentUser.Email)
                 {
                     canEditDetail = true; // Stajyer her durumda günlük detayları düzenleyebilir
@@ -428,7 +427,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     timesheetDetail.EndTime = null;
                 }
 
-                // ÖNEMLI: Revizyon durumundaysa ve stajyer değişiklik yaparsa Pending'e çevir
+                // Revizyon durumundaysa ve stajyer değişiklik yaparsa durumu beklemede yap
                 if (timesheetDetail.Timesheet.Status == ApprovalStatus.Revision && userRoles.Contains("Intern"))
                 {
                     timesheetDetail.Timesheet.Status = ApprovalStatus.Pending;
@@ -460,7 +459,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // POST: Timesheets/Approve - Puantaj Onaylama (Sadece yetkili roller)
+        // POST: Timesheets/Approve - Puantaj Onaylama
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin,HR,Supervisor")]
@@ -509,15 +508,15 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             try
             {
-                // YENİ İŞ AKIŞI: Staj türüne göre onay süreci
+                // Staj türüne göre onay süreci
                 if (userRoles.Contains("Supervisor"))
                 {
-                    // SUPERVISOR ONAYI
+                    // Supervisor onayı
                     await ApproveBySuperviser(timesheet, currentUser, approvalNote);
                 }
                 else if (userRoles.Any(r => r == "Admin" || r == "HR"))
                 {
-                    // İK ONAYI (sadece Talentern için gerekli)
+                    // ik onayı sadece Talentern için gerekli
                     await ApproveByHR(timesheet, currentUser, approvalNote);
                 }
                 else
@@ -538,14 +537,14 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // METOD: Supervisor onayı
+        // Supervisor onayı metodu
         private async Task ApproveBySuperviser(Timesheet timesheet, ApplicationUser currentUser, string? approvalNote)
         {
             // Staj türünü kontrol et
             if (timesheet.Intern.InternshipType == InternshipType.Talentern)
             {
-                // Talentern ise İK onayına gönder
-                timesheet.Status = ApprovalStatus.SupervisorApproved; // YENİ DURUM
+                // Talentern ise ik onayına gönder
+                timesheet.Status = ApprovalStatus.SupervisorApproved;
                 timesheet.SupervisorId = currentUser.Id;
                 timesheet.SupervisorName = currentUser.FullName ?? currentUser.UserName;
                 timesheet.SupervisorApprovalDate = DateTime.Now;
@@ -568,7 +567,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // YENİ METOD: İK onayı
+        // ik onayı metodu
         private async Task ApproveByHR(Timesheet timesheet, ApplicationUser currentUser, string? approvalNote)
         {
             if (timesheet.Status != ApprovalStatus.SupervisorApproved)
@@ -577,7 +576,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 return;
             }
 
-            // İK son onayı verir
+            // ik son onayı verir
             timesheet.Status = ApprovalStatus.Approved;
             timesheet.ApproverId = currentUser.Id;
             timesheet.ApproverName = currentUser.FullName ?? currentUser.UserName;
@@ -588,7 +587,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             TempData["SuccessMessage"] = $"{timesheet.Intern.FullName} adlı stajyerin puantajı İK tarafından final onayı verildi.";
         }
 
-        // POST: Timesheets/Reject - Puantaj Reddetme (Sadece yetkili roller)
+        // POST: Timesheets/Reject - Puantaj Reddetme
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin,HR,Supervisor")]
@@ -637,7 +636,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // POST: Timesheets/RequestRevision - Puantaj Revizyon İsteme (Sadece yetkili roller)
+        // POST: Timesheets/RequestRevision - Puantaj Revizyon İsteme
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Admin,HR,Supervisor")]
@@ -686,7 +685,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // GET: Timesheets/Delete - Puantaj Sil (Sadece Admin ve kendi puantajı)
+        // GET: Timesheets/Delete - Puantaj Sil
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null) return NotFound();
@@ -701,7 +700,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (timesheet == null) return NotFound();
 
-            // Sadece Admin veya kendi puantajı olan stajyer silebilir (ve sadece Pending durumunda)
+            // Sadece Admin veya kendi puantajı olan stajyer silebilir ve sadece Pending durumunda
             if (!userRoles.Contains("Admin"))
             {
                 if (!userRoles.Contains("Intern") || timesheet.Intern.Email != currentUser.Email)
@@ -720,7 +719,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return View(timesheet);
         }
 
-        // POST: Timesheets/Delete - Puantaj Sil (Onay)
+        // POST: Timesheets/Delete - Puantaj Sil Onay
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -771,7 +770,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
         }
 
         // Puantaj Excel Export
-        [Authorize(Roles = "PersonelIsleri")]  // Sadece PersonelIsleri
+        [Authorize(Roles = "PersonelIsleri")]
         public async Task<IActionResult> ExportToExcel(string status = "All")
         {
             var query = _context.Timesheets
@@ -793,7 +792,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             using var workbook = new XLWorkbook();
 
-            // Worksheet 1: Puantaj Özeti
+            // Puantaj Özeti
             var summaryWorksheet = workbook.Worksheets.Add("Puantaj Özeti");
 
             // Summary Headers
@@ -882,7 +881,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // Helper method: Puantaj toplamlarını yeniden hesapla
+        // Puantaj toplamlarını yeniden hesapla
         private async Task RecalculateTimesheetTotals(int timesheetId)
         {
             var timesheet = await _context.Timesheets
@@ -900,6 +899,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
+        // Aylık puantaj detaylarını oluştur
         private async Task CreateMonthlyTimesheetDetails(Timesheet timesheet)
         {
             var startDate = new DateTime(timesheet.PeriodDate.Year, timesheet.PeriodDate.Month, 1);
@@ -917,7 +917,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                     DayName = GetTurkishDayName(date.DayOfWeek),
                     WorkLocation = WorkLocation.HeadOffice,
 
-                    // TÜM GÜNLER BAŞLANGIÇTA İŞARETSİZ OLSUN
+                    // tüm günler başlangıçta boş olarak ayarlanır
                     IsPresent = false,
                     StartTime = null,
                     EndTime = null,
@@ -941,6 +941,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             timesheet.TotalTrainingHours = 0;
         }
 
+        // Gün adları
         private string GetTurkishDayName(DayOfWeek dayOfWeek)
         {
             return dayOfWeek switch
@@ -956,6 +957,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
             };
         }
 
+        // Onay durumları
         private string GetApprovalStatusDescription(ApprovalStatus status)
         {
             return status switch

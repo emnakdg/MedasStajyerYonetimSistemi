@@ -1,14 +1,9 @@
-﻿// MEDAŞ Stajyer Yönetim Sistemi - Veritabanı Modelleri
-// SQL Server 2017+ Uyumlu - Code First Yaklaşımı
-
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
 
 namespace MedasStajyerYonetimSistemi.Models
 {
-    // ============================================================================
-    // 1. KULLANICI YÖNETİMİ (Identity Tabanlı)
-    // ============================================================================
+    // kullanıcı yönetimi Identity Tabanlı
 
     public class ApplicationUser : IdentityUser
     {

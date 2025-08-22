@@ -74,14 +74,14 @@ namespace MedasStajyerYonetimSistemi.Controllers
             return RedirectToAction("Index", "Home");
         }
 
-        // GET: Account/Register - Kayıt Sayfası (Opsiyonel)
+        // GET: Account/Register - Kayıt Sayfası
         [HttpGet]
         public IActionResult Register()
         {
             return View();
         }
 
-        // POST: Account/Register - Kayıt İşlemi (Opsiyonel)
+        // POST: Account/Register - Kayıt İşlemi
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Register(RegisterViewModel model)
@@ -120,7 +120,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
 
     // ViewModels
-
     // LoginViewModel - Giriş Formu Modeli
     public class LoginViewModel
     {

@@ -6,12 +6,9 @@
     ViewData["Title"] = "Puantaj Yönetimi";
     var currentUser = await UserManager.GetUserAsync(User);
     var userRoles = await UserManager.GetRolesAsync(currentUser);
-    // DÜZELTİLDİ: PersonelIsleri'nin onaylama yetkisi kaldırıldı
     bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
-    // DÜZELTİLDİ: Sadece PersonelIsleri excel export yapabilir
     bool canExport = userRoles.Contains("PersonelIsleri");
     bool isIntern = userRoles.Contains("Intern");
-    // DÜZELTİLDİ: PersonelIsleri'nin puantaj oluşturma yasağı netleştirildi
     var canCreate = !User.IsInRole("PersonelIsleri");
 }
 
@@ -226,13 +223,13 @@
                                         <td>@item.CreatedDate.ToString("dd.MM.yyyy HH:mm")</td>
                                         <td>
                                             <div class="btn-group" role="group">
-                                                <!-- Herkes Detay Görebilir -->
+                                                <!-- Herkes detay görebilir -->
                                                 <a asp-action="Details" asp-route-id="@item.Id"
                                                    class="btn btn-sm btn-outline-primary" title="Detaylar">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
 
-                                                <!-- Stajyer Sadece Beklemedeki/Revize Kendi Puantajlarını Düzenleyebilir -->
+                                                <!-- Stajyer sadece beklemedeki, revize kendi puantajlarını düzenleyebilir -->
                                                 @if ((item.Status == ApprovalStatus.Pending || item.Status == ApprovalStatus.Revision) &&
                                                                                         ((isIntern && item.Intern.Email == currentUser.Email) || canApprove))
                                                 {
@@ -242,7 +239,7 @@
                                                     </a>
                                                 }
 
-                                                <!-- SADECE YETKİLİLER ONAYLAMA/REDDETME YAPABİLİR -->
+                                                <!-- sadece yetkililer onaylama, reddetme yapabilir -->
                                                 @if (canApprove && (item.Status == ApprovalStatus.Pending || item.Status == ApprovalStatus.Revision || item.Status == ApprovalStatus.SupervisorApproved))
                                                 {
                                                     <button type="button" class="btn btn-sm btn-outline-success"
@@ -282,7 +279,7 @@
                     </table>
                 </div>
 
-                <!-- Pagination -->
+                <!-- Sayfalama -->
                 @if (ViewBag.TotalPages > 1)
                 {
                     <nav class="mt-3">
@@ -303,7 +300,7 @@
     </div>
 </div>
 
-<!-- MODAL'LAR - SADECE YETKİLİLER İÇİN -->
+<!-- modallar yetkililer için -->
 @if (canApprove)
 {
     <!-- Reddetme Modal -->
