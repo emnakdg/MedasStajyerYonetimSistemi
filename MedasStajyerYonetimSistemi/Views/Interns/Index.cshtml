@@ -14,7 +14,7 @@
                         @* Sadece HR ve Admin yeni kayıt oluşturabilir *@
                         @if (User.IsInRole("Admin") || User.IsInRole("HR"))
                         {
-                            <a asp-action="Create" class="btn btn-success">
+                            <a asp-action="Create" class="btn btn-primary">
                                 <i class="fas fa-plus me-1"></i>Yeni Kayıt
                             </a>
                         }
