@@ -11,7 +11,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="card-title mb-0">Stajyer Listesi</h3>
                     <div class="col-md-6 text-end">
-                        @* Sadece HR, Admin ve Personel Isleri yeni kayıt oluşturabilir *@
+                        @* Sadece HR ve Admin yeni kayıt oluşturabilir *@
                         @if (User.IsInRole("Admin") || User.IsInRole("HR"))
                         {
                             <a asp-action="Create" class="btn btn-success">
@@ -19,21 +19,12 @@
                             </a>
                         }
 
-                        @* Sadece HR, Admin ve Personel Isleri export yapabilir *@
-                        @if (User.IsInRole("Admin") || User.IsInRole("HR") || User.IsInRole("PersonelIsleri"))
+                        @* DÜZELTİLDİ: Sadece PersonelIsleri export yapabilir *@
+                        @if (User.IsInRole("PersonelIsleri"))
                         {
-                            <div class="btn-group ms-2">
-                                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                                    <i class="fas fa-file-export me-1"></i>Dışa Aktar
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li>
-                                        <a class="dropdown-item" asp-action="ExportToExcel">
-                                            <i class="fas fa-file-excel me-1"></i>Excel
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
+                            <a asp-action="ExportToExcel" class="btn btn-success me-2">
+                                <i class="fas fa-file-excel"></i> Excel'e Aktar
+                            </a>
                         }
                     </div>
                 </div>
@@ -142,20 +133,20 @@
                             </table>
                         </div>
 
-                    <!-- Sayfalama -->
-                    @if (ViewBag.TotalPages > 1)
-                    {
-                        <nav class="mt-3">
-                            <ul class="pagination justify-content-center">
-                                @for (int i = 1; i <= ViewBag.TotalPages; i++)
-                                {
-                                    <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
-                                        <a class="page-link" href="?page=@i&sortBy=@ViewBag.CurrentSort&searchTerm=@ViewBag.CurrentSearch">@i</a>
-                                    </li>
-                                }
-                            </ul>
-                        </nav>
-                    }
+                        <!-- Sayfalama -->
+                        @if (ViewBag.TotalPages > 1)
+                        {
+                            <nav class="mt-3">
+                                <ul class="pagination justify-content-center">
+                                    @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                                    {
+                                        <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                            <a class="page-link" href="?page=@i&sortBy=@ViewBag.CurrentSort&searchTerm=@ViewBag.CurrentSearch">@i</a>
+                                        </li>
+                                    }
+                                </ul>
+                            </nav>
+                        }
                     }
                     else
                     {

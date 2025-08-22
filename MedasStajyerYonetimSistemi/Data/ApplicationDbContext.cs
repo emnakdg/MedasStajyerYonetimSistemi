@@ -143,8 +143,8 @@ namespace MedasStajyerYonetimSistemi.Data
                 entity.HasIndex(e => e.PeriodDate);
                 entity.HasIndex(e => e.CreatedDate);
 
-                // Unique constraint - Bir stajyerin aynı dönem için sadece bir puantajı olabilir
-                entity.HasIndex(e => new { e.InternId, e.PeriodDate }).IsUnique();
+                // KALDIRILDI: Unique constraint - reddedilen/iptal edilen puantajlar için yeniden oluşturma imkanı
+                // entity.HasIndex(e => new { e.InternId, e.PeriodDate }).IsUnique();
             });
 
             // ============================================================================

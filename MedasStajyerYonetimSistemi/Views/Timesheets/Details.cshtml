@@ -6,17 +6,23 @@
     ViewData["Title"] = "Puantaj Detayı";
     var currentUser = await UserManager.GetUserAsync(User);
     var userRoles = await UserManager.GetRolesAsync(currentUser);
-    bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
+    // DÜZELTİLDİ: PersonelIsleri'nin onaylama yetkisi kaldırıldı
+    bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
     bool isIntern = userRoles.Contains("Intern");
+    var canCreate = !User.IsInRole("PersonelIsleri");
 
     // Detaylı yetki kontrolü
     bool internCanEditDetails = isIntern && Model.Intern.Email == currentUser.Email;
 
     // Form düzenleme (Edit sayfası) hakları
     bool canEditForm = false;
-    if (canApprove)
+    if (userRoles.Any(r => r == "Admin" || r == "HR"))
     {
-        canEditForm = true; // Admin/HR/Supervisor her zaman
+        canEditForm = true; // Admin/HR her zaman
+    }
+    else if (userRoles.Contains("Supervisor"))
+    {
+        canEditForm = (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision);
     }
     else if (internCanEditDetails)
     {
@@ -27,10 +33,10 @@
     bool canEditDetails = canApprove || internCanEditDetails;
 
     // YENİ: Hangi onay seviyesinde olduğumuzu belirle
-    bool showSupervisorApproval = canApprove && userRoles.Contains("Supervisor") &&
+    bool showSupervisorApproval = userRoles.Contains("Supervisor") &&
                                 (Model.Status == ApprovalStatus.Pending || Model.Status == ApprovalStatus.Revision);
 
-    bool showHRApproval = canApprove && userRoles.Any(r => r == "Admin" || r == "HR") &&
+    bool showHRApproval = userRoles.Any(r => r == "Admin" || r == "HR") &&
                         Model.Status == ApprovalStatus.SupervisorApproved &&
                         Model.Intern.InternshipType == InternshipType.Talentern;
 }
@@ -86,9 +92,9 @@
 
         <!-- Durum bilgisi -->
         <div class="alert alert-@(Model.Status == ApprovalStatus.Approved ? "success" :
-                                               Model.Status == ApprovalStatus.SupervisorApproved ? "info" :
-                                               Model.Status == ApprovalStatus.Pending ? "warning" :
-                                               Model.Status == ApprovalStatus.Revision ? "secondary" : "danger")">
+                                                            Model.Status == ApprovalStatus.SupervisorApproved ? "info" :
+                                                            Model.Status == ApprovalStatus.Pending ? "warning" :
+                                                            Model.Status == ApprovalStatus.Revision ? "secondary" : "danger")">
             <strong>Durum:</strong>
             @switch (Model.Status)
             {
@@ -100,7 +106,7 @@
                     @if (Model.Intern.InternshipType == InternshipType.Talentern)
                     {
                         <br>
-            
+
                         <small>İK onayı bekleniyor</small>
                     }
                     break;
@@ -109,7 +115,7 @@
                     if (canEditDetails)
                     {
                         <br>
-            
+
                         <small><i class="fas fa-info-circle"></i> Onaylanmış puantajlarda günlük detayları düzenleyebilirsiniz.</small>
                     }
                     break;
@@ -118,7 +124,7 @@
                     if (internCanEditDetails)
                     {
                         <br>
-            
+
                         <small><i class="fas fa-exclamation-triangle"></i> Lütfen gerekli düzeltmeleri yapıp kaydedin.</small>
                     }
                     break;
@@ -266,7 +272,7 @@
                                         @foreach (var detail in Model.TimesheetDetails.OrderBy(d => d.WorkDate))
                                         {
                                             <tr class="@(detail.WorkDate.DayOfWeek == DayOfWeek.Saturday || detail.WorkDate.DayOfWeek == DayOfWeek.Sunday ? "table-secondary" : "")
-                                      @(!detail.IsPresent && detail.LeaveHours > 0 ? "table-warning" : "")">
+                                              @(!detail.IsPresent && detail.LeaveHours > 0 ? "table-warning" : "")">
                                                 <td>@detail.WorkDate.ToString("dd.MM.yyyy")</td>
                                                 <td>@detail.DayName</td>
                                                 <td>
@@ -278,7 +284,7 @@
                                                         @if (detail.StartTime.HasValue && detail.EndTime.HasValue)
                                                         {
                                                             <br>
-                                            
+
                                                             <small class="text-muted">
                                                                 @detail.StartTime.Value.ToString(@"hh\:mm") - @detail.EndTime.Value.ToString(@"hh\:mm")
                                                             </small>
@@ -315,19 +321,19 @@
                                                     @if (!string.IsNullOrEmpty(detail.LeaveInfo))
                                                     {
                                                         <div class="alert alert-warning p-2 mb-0">
-                                                            
-                                                                <strong>İzin:</strong> @detail.LeaveInfo
-                                                                @if (detail.LeaveHours > 0)
-                                                                {
+
+                                                            <strong>İzin:</strong> @detail.LeaveInfo
+                                                            @if (detail.LeaveHours > 0)
+                                                            {
                                                                 <small>
                                                                     <br>
                                                                     <strong>Süre:</strong>
- 
+
                                                                     @detail.LeaveHours.ToString("F1")
                                                                     saat
                                                                 </small>
-                                                                                                                    }
-                                                            
+                                                            }
+
                                                         </div>
                                                     }
                                                     else
@@ -388,7 +394,7 @@
                                     @if (Model.Intern.InternshipType == InternshipType.Talentern)
                                     {
                                         <br>
-                            
+
                                         <small class="text-muted mt-2">İK onayı bekleniyor</small>
                                     }
                                     break;

@@ -6,9 +6,13 @@
     ViewData["Title"] = "Puantaj Yönetimi";
     var currentUser = await UserManager.GetUserAsync(User);
     var userRoles = await UserManager.GetRolesAsync(currentUser);
-    bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
-    bool canExport = userRoles.Any(r => r == "Admin" || r == "HR" || r == "PersonelIsleri");
+    // DÜZELTİLDİ: PersonelIsleri'nin onaylama yetkisi kaldırıldı
+    bool canApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
+    // DÜZELTİLDİ: Sadece PersonelIsleri excel export yapabilir
+    bool canExport = userRoles.Contains("PersonelIsleri");
     bool isIntern = userRoles.Contains("Intern");
+    // DÜZELTİLDİ: PersonelIsleri'nin puantaj oluşturma yasağı netleştirildi
+    var canCreate = !User.IsInRole("PersonelIsleri");
 }
 
 @Html.AntiForgeryToken()
@@ -21,12 +25,13 @@
                 @if (canExport)
                 {
                     <a asp-action="ExportToExcel" class="btn btn-success me-2">
-                        <i class="fas fa-file-excel"></i> Dışa Aktar
+                        <i class="fas fa-file-excel"></i> Excele Aktar
                     </a>
                 }
-                <a asp-action="Create" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Yeni Puantaj
-                </a>
+                @if (canCreate)
+                {
+                    <a asp-action="Create" class="btn btn-primary">Yeni Puantaj</a>
+                }
             </div>
         </div>
 
@@ -57,7 +62,7 @@
                             <option value="Pending" selected="@(ViewBag.CurrentStatus == "Pending")">Beklemede</option>
                             <option value="Approved" selected="@(ViewBag.CurrentStatus == "Approved")">Onaylandı</option>
                             <option value="Rejected" selected="@(ViewBag.CurrentStatus == "Rejected")">Reddedildi</option>
-                            <option value="NeedsRevision" selected="@(ViewBag.CurrentStatus == "NeedsRevision")">Revize</option>
+                            <option value="Revision" selected="@(ViewBag.CurrentStatus == "Revision")">Revize</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -143,7 +148,7 @@
                                                 @if (!isIntern)
                                                 {
                                                     <br>
-                                        
+
                                                     <small class="text-muted">@item.Intern.Department</small>
                                                 }
                                             </div>
@@ -155,7 +160,7 @@
                                                 @if (item.IsManualEntry)
                                                 {
                                                     <br>
-                                    
+
                                                     <span class="badge bg-secondary">Manuel</span>
                                                 }
                                             </td>
@@ -165,7 +170,7 @@
                                             @if (item.TotalLeaveDays > 0)
                                             {
                                                 <br>
-                                    
+
                                                 <span class="badge bg-warning">@item.TotalLeaveDays izin</span>
                                             }
                                         </td>
@@ -183,7 +188,7 @@
                                                     @if (item.Intern.InternshipType == InternshipType.Talentern)
                                                     {
                                                         <br>
-                                    
+
                                                         <small class="text-muted">İK onayı bekleniyor</small>
                                                     }
                                                     break;
@@ -192,7 +197,7 @@
                                                     @if (!string.IsNullOrEmpty(item.ApproverName))
                                                     {
                                                         <br>
-                                    
+
                                                         <small class="text-muted">@item.ApproverName</small>
                                                     }
                                                     break;
@@ -201,7 +206,7 @@
                                                     @if (!string.IsNullOrEmpty(item.ApproverName))
                                                     {
                                                         <br>
-                                    
+
                                                         <small class="text-muted">@item.ApproverName</small>
                                                     }
                                                     break;
@@ -210,7 +215,7 @@
                                                     @if (!string.IsNullOrEmpty(item.ApproverName))
                                                     {
                                                         <br>
-                                    
+
                                                         <small class="text-muted">@item.ApproverName</small>
                                                     }
                                                     break;
@@ -236,16 +241,21 @@
                                                 }
 
                                                 <!-- SADECE YETKİLİLER ONAYLAMA/REDDETME YAPABİLİR -->
-                                                @if (canApprove && (item.Status == ApprovalStatus.Pending || item.Status == ApprovalStatus.Revision))
+                                                @if (canApprove && (item.Status == ApprovalStatus.Pending || item.Status == ApprovalStatus.Revision || item.Status == ApprovalStatus.SupervisorApproved))
                                                 {
                                                     <button type="button" class="btn btn-sm btn-outline-success"
                                                             onclick="approveTimesheet(@item.Id)" title="Onayla">
                                                         <i class="fas fa-check"></i>
                                                     </button>
-                                                    <button type="button" class="btn btn-sm btn-outline-warning"
-                                                            onclick="showRevisionModal(@item.Id)" title="Revizyon İste">
-                                                        <i class="fas fa-edit"></i>
-                                                    </button>
+
+                                                    @if (item.Status != ApprovalStatus.SupervisorApproved)
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-outline-warning"
+                                                                onclick="showRevisionModal(@item.Id)" title="Revizyon İste">
+                                                            <i class="fas fa-edit"></i>
+                                                        </button>
+                                                    }
+
                                                     <button type="button" class="btn btn-sm btn-outline-danger"
                                                             onclick="showRejectModal(@item.Id)" title="Reddet">
                                                         <i class="fas fa-times"></i>
@@ -356,46 +366,46 @@
         <!-- SADECE YETKİLİLER İÇİN JAVASCRIPT FONKSİYONLARI -->
         @if (canApprove)
         {
-                <text>
-                function approveTimesheet(id) {
-                    if (confirm('Bu puantajı onaylamak istediğinizden emin misiniz?')) {
-                        var form = document.createElement('form');
-                        form.method = 'POST';
-                        form.action = '@Url.Action("Approve", "Timesheets")';
+                    <text>
+                    function approveTimesheet(id) {
+                        if (confirm('Bu puantajı onaylamak istediğinizden emin misiniz?')) {
+                            var form = document.createElement('form');
+                            form.method = 'POST';
+                            form.action = '@Url.Action("Approve", "Timesheets")';
 
-                        var idInput = document.createElement('input');
-                        idInput.type = 'hidden';
-                        idInput.name = 'id';
-                        idInput.value = id;
-                        form.appendChild(idInput);
+                            var idInput = document.createElement('input');
+                            idInput.type = 'hidden';
+                            idInput.name = 'id';
+                            idInput.value = id;
+                            form.appendChild(idInput);
 
-                        // Anti-forgery token'ı doğru şekilde al
-                        var token = document.querySelector('input[name="__RequestVerificationToken"]');
-                        if (token) {
-                            var tokenInput = document.createElement('input');
-                            tokenInput.type = 'hidden';
-                            tokenInput.name = '__RequestVerificationToken';
-                            tokenInput.value = token.value;
-                            form.appendChild(tokenInput);
+                            // Anti-forgery token'ı doğru şekilde al
+                            var token = document.querySelector('input[name="__RequestVerificationToken"]');
+                            if (token) {
+                                var tokenInput = document.createElement('input');
+                                tokenInput.type = 'hidden';
+                                tokenInput.name = '__RequestVerificationToken';
+                                tokenInput.value = token.value;
+                                form.appendChild(tokenInput);
+                            }
+
+                            document.body.appendChild(form);
+                            form.submit();
                         }
-
-                        document.body.appendChild(form);
-                        form.submit();
                     }
-                }
 
-                function showRejectModal(id) {
-                    document.getElementById('rejectTimesheetId').value = id;
-                    document.getElementById('rejectForm').action = '@Url.Action("Reject", "Timesheets")';
-                    new bootstrap.Modal(document.getElementById('rejectModal')).show();
-                }
+                    function showRejectModal(id) {
+                        document.getElementById('rejectTimesheetId').value = id;
+                        document.getElementById('rejectForm').action = '@Url.Action("Reject", "Timesheets")';
+                        new bootstrap.Modal(document.getElementById('rejectModal')).show();
+                    }
 
-                function showRevisionModal(id) {
-                    document.getElementById('revisionTimesheetId').value = id;
-                    document.getElementById('revisionForm').action = '@Url.Action("RequestRevision", "Timesheets")';
-                    new bootstrap.Modal(document.getElementById('revisionModal')).show();
-                }
-                </text>
+                    function showRevisionModal(id) {
+                        document.getElementById('revisionTimesheetId').value = id;
+                        document.getElementById('revisionForm').action = '@Url.Action("RequestRevision", "Timesheets")';
+                        new bootstrap.Modal(document.getElementById('revisionModal')).show();
+                    }
+                    </text>
         }
     </script>
 }

@@ -78,7 +78,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
     };
 
             ViewBag.IsIntern = userRoles.Contains("Intern");
-            ViewBag.CanApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri");
+            ViewBag.CanApprove = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor");
 
             return View(timesheets);
         }
@@ -118,6 +118,13 @@ namespace MedasStajyerYonetimSistemi.Controllers
         {
             var currentUser = await _userManager.GetUserAsync(User);
             var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            // PersonelIsleri yeni puantaj oluşturamaz
+            if (userRoles.Contains("PersonelIsleri"))
+            {
+                TempData["ErrorMessage"] = "Personel İşleri kullanıcıları yeni puantaj oluşturamaz.";
+                return RedirectToAction(nameof(Index));
+            }
 
             await PopulateDropDowns();
 
@@ -176,16 +183,18 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (ModelState.IsValid)
             {
-                // Aynı dönem için puantaj kontrolü
-                var existingTimesheet = await _context.Timesheets
-                    .FirstOrDefaultAsync(t => t.InternId == timesheet.InternId &&
-                                            t.PeriodDate.Year == timesheet.PeriodDate.Year &&
-                                            t.PeriodDate.Month == timesheet.PeriodDate.Month);
+                // Reddedilen/iptal edilen hariç aktif puantaj kontrolü
+                var existingCount = await _context.Timesheets
+                    .CountAsync(t => t.InternId == timesheet.InternId &&
+                               t.PeriodDate.Year == timesheet.PeriodDate.Year &&
+                               t.PeriodDate.Month == timesheet.PeriodDate.Month &&
+                               t.Status != ApprovalStatus.Rejected &&
+                               t.Status != ApprovalStatus.Cancelled);
 
-                if (existingTimesheet != null)
+                if (existingCount > 0)
                 {
-
-                    ModelState.AddModelError("PeriodDate", "Bu stajyer için bu dönemde zaten puantaj kaydı bulunmaktadır.");
+                    ModelState.AddModelError("PeriodDate",
+                        "Bu stajyer için bu dönemde zaten aktif bir puantaj kaydı bulunmaktadır.");
                     await PopulateDropDowns(timesheet.InternId);
                     return View(timesheet);
                 }
@@ -200,9 +209,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 timesheet.CreatedDate = DateTime.Now;
                 timesheet.Status = ApprovalStatus.Pending;
 
-                // Dönem için günlük detayları oluştur
                 await CreateMonthlyTimesheetDetails(timesheet);
-
                 _context.Add(timesheet);
                 await _context.SaveChangesAsync();
 
@@ -292,7 +299,7 @@ namespace MedasStajyerYonetimSistemi.Controllers
 
             if (existingTimesheet == null) return NotFound();
 
-            bool canEdit = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor" || r == "PersonelIsleri") ||
+            bool canEdit = userRoles.Any(r => r == "Admin" || r == "HR" || r == "Supervisor") ||
                            (userRoles.Contains("Intern") && existingTimesheet.Intern.Email == currentUser.Email);
 
             if (!canEdit)
@@ -456,9 +463,20 @@ namespace MedasStajyerYonetimSistemi.Controllers
         // POST: Timesheets/Approve - Puantaj Onaylama (Sadece yetkili roller)
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,HR,Supervisor,PersonelIsleri")]
+        [Authorize(Roles = "Admin,HR,Supervisor")]
         public async Task<IActionResult> Approve(int id, string? approvalNote = null)
         {
+
+            // PersonelIsleri kontrolü - URL ile erişimi engelle
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            if (userRoles.Contains("PersonelIsleri"))
+            {
+                TempData["ErrorMessage"] = "Bu işlemi gerçekleştirme yetkiniz bulunmuyor.";
+                return RedirectToAction(nameof(Index));
+            }
+
             if (id <= 0)
             {
                 TempData["ErrorMessage"] = "Geçersiz puantaj ID'si.";
@@ -482,9 +500,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 TempData["ErrorMessage"] = "Bu puantaj onaylanamaz.";
                 return RedirectToAction(nameof(Details), new { id });
             }
-
-            var currentUser = await _userManager.GetUserAsync(User);
-            var userRoles = await _userManager.GetRolesAsync(currentUser);
 
             if (currentUser == null)
             {
@@ -576,9 +591,20 @@ namespace MedasStajyerYonetimSistemi.Controllers
         // POST: Timesheets/Reject - Puantaj Reddetme (Sadece yetkili roller)
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,HR,Supervisor,PersonelIsleri")]
+        [Authorize(Roles = "Admin,HR,Supervisor")]
         public async Task<IActionResult> Reject(int id, string approvalNote)
         {
+
+            // PersonelIsleri kontrolü - URL ile erişimi engelle
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            if (userRoles.Contains("PersonelIsleri"))
+            {
+                TempData["ErrorMessage"] = "Bu işlemi gerçekleştirme yetkiniz bulunmuyor.";
+                return RedirectToAction(nameof(Index));
+            }
+
             if (string.IsNullOrWhiteSpace(approvalNote))
             {
                 TempData["ErrorMessage"] = "Red sebebi belirtilmelidir.";
@@ -597,8 +623,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 return RedirectToAction(nameof(Details), new { id });
             }
 
-            var currentUser = await _userManager.GetUserAsync(User);
-
             timesheet.Status = ApprovalStatus.Rejected;
             timesheet.ApproverId = currentUser?.Id;
             timesheet.ApproverName = currentUser?.FullName ?? currentUser?.UserName;
@@ -616,9 +640,20 @@ namespace MedasStajyerYonetimSistemi.Controllers
         // POST: Timesheets/RequestRevision - Puantaj Revizyon İsteme (Sadece yetkili roller)
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,HR,Supervisor,PersonelIsleri")]
+        [Authorize(Roles = "Admin,HR,Supervisor")]
         public async Task<IActionResult> RequestRevision(int id, string approvalNote)
         {
+
+            // PersonelIsleri kontrolü - URL ile erişimi engelle
+            var currentUser = await _userManager.GetUserAsync(User);
+            var userRoles = await _userManager.GetRolesAsync(currentUser);
+
+            if (userRoles.Contains("PersonelIsleri"))
+            {
+                TempData["ErrorMessage"] = "Bu işlemi gerçekleştirme yetkiniz bulunmuyor.";
+                return RedirectToAction(nameof(Index));
+            }
+
             if (string.IsNullOrWhiteSpace(approvalNote))
             {
                 TempData["ErrorMessage"] = "Revizyon notu belirtilmelidir.";
@@ -636,8 +671,6 @@ namespace MedasStajyerYonetimSistemi.Controllers
                 TempData["ErrorMessage"] = "Sadece beklemede olan puantajlar için revizyon istenebilir.";
                 return RedirectToAction(nameof(Details), new { id });
             }
-
-            var currentUser = await _userManager.GetUserAsync(User);
 
             timesheet.Status = ApprovalStatus.Revision;
             timesheet.ApproverId = currentUser?.Id;
@@ -737,8 +770,8 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // Puantaj Excel Export (Sadece HR ve Admin)
-        [Authorize(Roles = "Admin,HR,PersonelIsleri")]
+        // Puantaj Excel Export
+        [Authorize(Roles = "PersonelIsleri")]  // Sadece PersonelIsleri
         public async Task<IActionResult> ExportToExcel(string status = "All")
         {
             var query = _context.Timesheets

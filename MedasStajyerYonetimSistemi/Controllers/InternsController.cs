@@ -269,8 +269,8 @@ namespace MedasStajyerYonetimSistemi.Controllers
             }
         }
 
-        // Excel Export (Sadece HR ve Admin)
-        [Authorize(Roles = "Admin,HR,PersonelIsleri")]
+        // Excel Export (Sadece PersonelIsleri)
+        [Authorize(Roles = "PersonelIsleri")]
         public async Task<IActionResult> ExportToExcel(string? searchTerm = null)
         {
             var query = _context.Interns.Where(i => i.IsActive);
@@ -292,10 +292,10 @@ namespace MedasStajyerYonetimSistemi.Controllers
             // Headers
             var headers = new[]
             {
-                "Ad-Soyad", "Şirket", "Departman", "Okul", "Bölüm",
-                "Sorumlu Kişi", "Telefon", "E-posta", "Staj Türü",
-                "Başlangıç Tarihi", "Bitiş Tarihi", "Aktif"
-            };
+        "Ad-Soyad", "Şirket", "Departman", "Okul", "Bölüm",
+        "Sorumlu Kişi", "Telefon", "E-posta", "Staj Türü",
+        "Başlangıç Tarihi", "Bitiş Tarihi", "Aktif"
+    };
 
             for (int i = 0; i < headers.Length; i++)
             {
